@@ -40,11 +40,11 @@ Unified Dataset (GeoParquet)
 - GeoParquet (output format)
 
 ## Getting Started 
-1. Clone the repository **git clone https://github.com/<your-username>/Mercury.git ; cd Mercury**
+1. Clone the repository **git clone https://github.com/Nebula-Dust/Mercury.git ; cd Mercury**
 2. Install dependencies
 **pip install -r requirements.txt**
 3. Run pipeline
-**python run_pipeline.py --source data/sample_reports/**
+**python run_pipeline.py --source data/.**
 
 
 **Project Status**
