@@ -1,0 +1,57 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Checkout repo
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. Set up Python
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    # 3. Install dependencies into a package folder
+    - name: Install dependencies
+      run: |
+        mkdir -p package
+        pip install -r requirements.txt -t package
+
+    # 4. Copy your app code into the package
+    - name: Copy source code
+      run: |
+        cp -r src/* package/  
+
+    # 5. Zip the deployment package
+    - name: Zip package
+      run: |
+        cd package
+        zip -r ../lambda.zip .
+        cd ..
+
+    # 6. Configure AWS credentials
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    # 7. Deploy to Lambda
+    - name: Deploy to Lambda
+      run: |
+        aws lambda update-function-code \
+          --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+          --zip-file fileb://lambda.zip
+
+    # 9. (Optional) Print success message
+    - name: Done
+      run: echo "Deployment successful"
