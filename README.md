@@ -46,6 +46,30 @@ Unified Dataset (GeoParquet)
 3. Run pipeline
 **python run_pipeline.py --source data/sample_reports/**
 
+## MRDS CSV Ingestion
+Normalize the USGS MRDS tabular export and write a GeoParquet dataset:
+
+**python -m src.etl.ingest_mrds rdbms-tab/MRDS.txt --output out/mrds.parquet**
+
+The same module can be called from a pipeline or Lambda handler:
+
+**from src.etl.ingest_mrds import process_mrds**
+
+**process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")**
+
+## PDF Report Ingestion
+Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
+
+**export OPENAI_API_KEY=...**
+
+**python -m src.etl.pdf_ingest --input reports/example.pdf**
+
+Programmatic use:
+
+**from src.etl.pdf_ingest import process_pdf**
+
+**deposits = process_pdf("/tmp/report.pdf")**
+
 
 **Project Status**
   Early-stage prototype
