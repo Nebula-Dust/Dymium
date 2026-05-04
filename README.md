@@ -1,8 +1,8 @@
-# Mercury
+# Dymium
 AI pipeline for transforming messy geological data into structured, ML-ready geospatial datasets.
 
 ## Overview 
-Mercury converts heterogeneous geological data—PDF reports, CSV datasets, and shapefiles—into a unified, standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Mercury focuses on solving this bottleneck by automating:
+Dymium converts heterogeneous geological data—PDF reports, CSV datasets, and shapefiles—into a unified, standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
 - Data extraction (OCR, tables, metadata)
 - Entity recognition (lithology, commodity, grade, location)
 - Schema normalization
@@ -40,7 +40,7 @@ Unified Dataset (GeoParquet)
 - GeoParquet (output format)
 
 ## Getting Started 
-1. Clone the repository **git clone https://github.com/<your-username>/Mercury.git ; cd Mercury**
+1. Clone the repository **git clone https://github.com/<your-username>/Dymium.git ; cd Dymium**
 2. Install dependencies
 **pip install -r requirements.txt**
 3. Run pipeline
@@ -98,7 +98,7 @@ Programmatic use:
 
 ## Scope
 
-Mercury focuses on demonstrating:
+Dymium focuses on demonstrating:
 - Multi-source ingestion
 - Structured extraction from unstructured data
 - Baseline schema alignment
@@ -109,7 +109,7 @@ It does not attempt to fully solve:
 - Production-grade data pipelines
 
 **Design Philosophy**
-By focusing on data standardization first, Mercury aims to unlock downstream applications in exploration, processing, and decision-making.
+By focusing on data standardization first, Dymium aims to unlock downstream applications in exploration, processing, and decision-making.
 Contributions are welcome. 
 
 _Areas of interest:_
