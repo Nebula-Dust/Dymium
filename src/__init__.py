@@ -1,1 +1,1 @@
-"""Mercury geospatial ETL package."""
+"""Dymium geospatial ETL package."""
