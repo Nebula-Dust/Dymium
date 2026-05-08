@@ -70,6 +70,17 @@ Programmatic use:
 
 **deposits = process_pdf("/tmp/report.pdf")**
 
+## Unified Dataset Fusion
+Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
+
+**python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/example.pdf --output out/unified.parquet**
+
+Programmatic use:
+
+**from src.etl.fusion import build_unified_dataset**
+
+**unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/example.pdf")**
+
 
 **Project Status**
   Early-stage prototype

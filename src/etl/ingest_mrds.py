@@ -97,7 +97,7 @@ def load_mrds(input_path: str | Path):
 
 
 def normalize_mrds(dataframe):
-    """Return a normalized dataframe with stable Mercury ETL columns."""
+    """Return a normalized dataframe with stable Dymium ETL columns."""
 
     pd = _require_pandas()
     df = dataframe.copy()

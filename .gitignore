@@ -1,3 +1,6 @@
 .venv
 mrds-trim
 rdbms-tab
+*.zip
+out/
+*.parquet
