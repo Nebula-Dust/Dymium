@@ -1,8 +1,35 @@
 # Dymium
-AI pipeline for transforming messy geological data into structured, ML-ready geospatial datasets.
+Open-source geospatial ETL infrastructure for transforming fragmented geological data into structured, ML-ready datasets.
 
-## Overview 
-Dymium converts heterogeneous geological data—PDF reports, CSV datasets, and shapefiles—into a unified, standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
+Dymium ingests geological PDFs, mineral databases, shapefiles, and geospatial layers, then normalizes them into a unified schema and exports GeoParquet datasets for downstream machine learning, exploration analysis, and geoscience workflows.
+
+## Why Dymium Exists
+
+Geological data is abundant but operationally fragmented.
+
+Mineral deposit information is spread across:
+- scanned PDF reports,
+- legacy tabular databases,
+- inconsistent geospatial formats,
+- jurisdiction-specific schemas,
+- decades of unstructured technical documents.
+
+This fragmentation creates a major bottleneck for machine learning, spatial analysis, and downstream exploration workflows.
+
+Dymium focuses on solving the data standardization layer first:
+- extract structured entities from geological documents,
+- normalize schemas across sources,
+- spatially enrich deposits with geological context,
+- export interoperable GeoParquet datasets.
+
+```text
+PDF Reports ─┐
+MRDS CSVs ───┼──► Ingestion & Parsing ─► Entity Extraction ─► Schema Normalization ─► GeoParquet
+Shapefiles ──┘            │                        │
+                           │                        └──► Spatial Enrichment
+                           │
+                           └──► Streamlit Visualization Layer
+```standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
 - Data extraction (OCR, tables, metadata)
 - Entity recognition (lithology, commodity, grade, location)
 - Schema normalization
@@ -10,17 +37,27 @@ Dymium converts heterogeneous geological data—PDF reports, CSV datasets, and s
 
 The result is a clean, consistent baseline dataset that can be extended and refined for downstream modeling.
 
-## Architecture (Simplified)
-Raw Data (PDFs / CSVs / Shapefiles)
-↓
-Ingestion & Parsing (Tika, pdfplumber, GDAL)
-↓
-Entity Extraction (LLM / NLP)
-↓
-Schema Mapping & Normalization
-↓
-Unified Dataset (GeoParquet)
+## Demo UI
 
+### Pipeline Overview
+![Pipeline Overview](docs/images/overview.png)
+
+### Deposit Map
+![Deposit Map](docs/images/deposit-map.png)
+
+### Geology Enrichment
+![Geology Enrichment](docs/images/geology-tab.png)
+
+## Architecture
+
+```text
+PDF Reports ─┐
+MRDS CSVs ───┼──► Ingestion & Parsing ─► Entity Extraction ─► Schema Normalization ─► GeoParquet
+Shapefiles ──┘            │                        │
+                           │                        └──► Spatial Enrichment
+                           │
+                           └──► Streamlit Visualization Layer
+```
 
 ## Example Use Cases
 - Rapid integration of historical geological datasets
@@ -31,76 +68,76 @@ Unified Dataset (GeoParquet)
 
 
 ## Tech Stack
-- Python
-- Apache Tika (PDF parsing)
-- pdfplumber (table extraction)
-- GDAL / GeoPandas (geospatial processing)
-- LLM APIs or local models (entity extraction)
+- Python 3.11+
+- PyMuPDF (PDF parsing)
+- OpenAI structured JSON extraction
+- Pandas / GeoPandas / Shapely
 - Pydantic (schema validation)
-- GeoParquet (output format)
+- GeoParquet / PyArrow
+- Streamlit / PyDeck (demo UI)
 
-## Getting Started 
+## Getting Started
+```bash
+git clone https://github.com/<your-username>/Dymium.git
+cd Dymium
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
-1. Clone the repository **git clone https://github.com/<your-username>/Dymium.git ; cd Dymium**
-2. Install dependencies
-**pip install -r requirements.txt**
-3. Run pipeline
-**python run_pipeline.py --source data/sample_reports/**
-```
+
+Set `OPENAI_API_KEY` before running PDF extraction or full MRDS/PDF fusion.
 
 ## MRDS CSV Ingestion
 Normalize the USGS MRDS tabular export and write a GeoParquet dataset:
-```
-**python -m src.etl.ingest_mrds rdbms-tab/MRDS.txt --output out/mrds.parquet**
+```bash
+python -m src.etl.ingest_mrds rdbms-tab/MRDS.txt --output out/mrds.parquet
 ```
 
 The same module can be called from a pipeline or Lambda handler:
-```
-**from src.etl.ingest_mrds import process_mrds**
+```python
+from src.etl.ingest_mrds import process_mrds
 
-**process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")**
+process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")
 ```
 
 ## PDF Report Ingestion
 Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
+```bash
+export OPENAI_API_KEY=...
+python -m src.etl.pdf_ingest --input reports/example.pdf
 ```
-**export OPENAI_API_KEY=...**
 
-**python -m src.etl.pdf_ingest --input reports/example.pdf**
-```
 Programmatic use:
+```python
+from src.etl.pdf_ingest import process_pdf
 
-```
-**from src.etl.pdf_ingest import process_pdf**
-
-**deposits = process_pdf("/tmp/report.pdf")**
+deposits = process_pdf("/tmp/report.pdf")
 ```
 ## Unified Dataset Fusion
 Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
+```bash
+python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/example.pdf --output out/unified.parquet
 ```
-**python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/example.pdf --output out/unified.parquet**
-```
+
 Programmatic use:
+```python
+from src.etl.fusion import build_unified_dataset
 
-```
-**from src.etl.fusion import build_unified_dataset**
-
-**unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/example.pdf")**
+unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/example.pdf")
 ```
 
 ## Geology Enrichment
-Enrich the unified dataset with SGMC geologic-unit context using spatial joins:
+Enrich the unified dataset with SGMC-style geologic-unit context using spatial joins:
 
-```
-**python -m src.etl.geology --input out/unified.parquet --shapefile data/sgmc.shp --output out/enriched.parquet**
+```bash
+python -m src.etl.geology --input out/unified.parquet --shapefile data/sgmc.shp --output out/enriched.parquet
 ```
 
 Programmatic use:
+```python
+from src.etl.geology import enrich_with_geology
 
-```
-**from src.etl.geology import enrich_with_geology**
-
-**enriched = enrich_with_geology("out/unified.parquet", "data/sgmc.shp")**
+enriched = enrich_with_geology("out/unified.parquet", "data/sgmc.shp")
 ```
 
 ## Streamlit Demo
@@ -110,36 +147,57 @@ Run the local technical demo for PDF extraction, MRDS/PDF fusion, geology enrich
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 The demo reads existing outputs such as `out/unified.parquet` and `out/enriched.parquet` when present, and can also trigger the pipeline from the sidebar. Set `OPENAI_API_KEY` before running PDF extraction or dataset fusion.
 
-Screenshot placeholder: add a screenshot of the Overview and Deposits Map tabs here before publishing the repository.
+## Standardized Output
 
-**Project Status**
-  Early-stage prototype
+Dymium exports normalized geospatial datasets with fields such as:
 
-  Current capabilities:
-    Basic PDF → structured data extraction
-    CSV normalization
-    Initial schema mapping
+- `site_name`
+- `commodities`
+- `latitude` / `longitude`
+- `lithology`
+- `geologic_age`
+- `source_url`
+- `confidence_score`
+- `geometry`
 
-  Planned:
-    Improved entity extraction accuracy
-    Multi-source dataset joining
-    Validation + confidence scoring
-    Web interface / demo
-    Expanded geoscience schema support
+Outputs are written to GeoParquet for interoperability with:
 
+- GeoPandas
+- DuckDB
+- Spark
+- QGIS
+- modern geospatial lakehouse workflows
 
-**Roadmap**
- Robust PDF + OCR pipeline
- LLM-based structured extraction
- Cross-source data integration
- Standardized geoscience schema
- Performance benchmarking (manual vs automated)
- Demo + visualization layer
+## Project Status
+
+Dymium is currently an early-stage open-source prototype.
+
+### Current Capabilities
+- MRDS CSV ingestion and normalization
+- PDF mineral deposit extraction
+- Multi-source dataset fusion
+- Spatial geology enrichment
+- GeoParquet export
+- Interactive Streamlit demo UI
+
+### In Progress
+- Improved extraction confidence scoring
+- Expanded lithology normalization
+- GeoPackage support
+- Logging and observability
+- Containerized deployment
+
+## Roadmap
+- Robust PDF + OCR pipeline
+- Improved LLM-based structured extraction
+- Broader geoscience schema normalization
+- Performance benchmarking against manual workflows
+- Cloud-ready deployment patterns
 
 
 ## Scope
