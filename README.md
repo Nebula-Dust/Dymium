@@ -40,57 +40,78 @@ Unified Dataset (GeoParquet)
 - GeoParquet (output format)
 
 ## Getting Started 
+```
 1. Clone the repository **git clone https://github.com/<your-username>/Dymium.git ; cd Dymium**
 2. Install dependencies
 **pip install -r requirements.txt**
 3. Run pipeline
 **python run_pipeline.py --source data/sample_reports/**
+```
 
 ## MRDS CSV Ingestion
 Normalize the USGS MRDS tabular export and write a GeoParquet dataset:
-
+```
 **python -m src.etl.ingest_mrds rdbms-tab/MRDS.txt --output out/mrds.parquet**
+```
 
 The same module can be called from a pipeline or Lambda handler:
-
+```
 **from src.etl.ingest_mrds import process_mrds**
 
 **process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")**
+```
 
 ## PDF Report Ingestion
 Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
-
+```
 **export OPENAI_API_KEY=...**
 
 **python -m src.etl.pdf_ingest --input reports/example.pdf**
-
+```
 Programmatic use:
 
+```
 **from src.etl.pdf_ingest import process_pdf**
 
 **deposits = process_pdf("/tmp/report.pdf")**
-
+```
 ## Unified Dataset Fusion
 Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
-
+```
 **python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/example.pdf --output out/unified.parquet**
-
+```
 Programmatic use:
 
+```
 **from src.etl.fusion import build_unified_dataset**
 
 **unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/example.pdf")**
+```
 
+## Geology Enrichment
+Enrich the unified dataset with SGMC geologic-unit context using spatial joins:
+
+```
+**python -m src.etl.geology --input out/unified.parquet --shapefile data/sgmc.shp --output out/enriched.parquet**
+```
+
+Programmatic use:
+
+```
+**from src.etl.geology import enrich_with_geology**
+
+**enriched = enrich_with_geology("out/unified.parquet", "data/sgmc.shp")**
+```
 
 **Project Status**
   Early-stage prototype
 
-  _Current capabilities:_
+  Current capabilities:
     Basic PDF → structured data extraction
     CSV normalization
     Initial schema mapping
 
-  _Planned_:
+  Planned:
     Improved entity extraction accuracy
     Multi-source dataset joining
     Validation + confidence scoring
@@ -123,7 +144,7 @@ It does not attempt to fully solve:
 By focusing on data standardization first, Dymium aims to unlock downstream applications in exploration, processing, and decision-making.
 Contributions are welcome. 
 
-_Areas of interest:_
+Areas of interest:
 
   Geoscience schema design
   NLP for technical documents

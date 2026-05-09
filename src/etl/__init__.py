@@ -2,7 +2,7 @@
 
 from .models import MineralDeposit
 
-__all__ = ["MineralDeposit", "build_unified_dataset", "process_mrds", "process_pdf"]
+__all__ = ["MineralDeposit", "build_unified_dataset", "enrich_with_geology", "process_mrds", "process_pdf"]
 
 
 def __getattr__(name: str):
@@ -18,4 +18,8 @@ def __getattr__(name: str):
         from .fusion import build_unified_dataset
 
         return build_unified_dataset
+    if name == "enrich_with_geology":
+        from .geology import enrich_with_geology
+
+        return enrich_with_geology
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
