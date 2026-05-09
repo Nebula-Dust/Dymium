@@ -4,3 +4,4 @@ rdbms-tab
 *.zip
 out/
 *.parquet
+geological_data

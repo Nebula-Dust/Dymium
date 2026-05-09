@@ -188,7 +188,7 @@ def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
         for pair in match_result["matched_pairs"]
     ]
     merged_df = pd.DataFrame.from_records(merged_records)
-    unified = pd.concat(
+    pre_dedupe = pd.concat(
         [
             _ensure_schema(merged_df),
             _ensure_schema(match_result["unmatched_mrds"]),
@@ -196,11 +196,15 @@ def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
         ],
         ignore_index=True,
     )
-    unified = _dedupe_dataset(unified)
+    unified = _dedupe_dataset(pre_dedupe)
     unified.attrs["match_counts"] = {
         "matched": len(match_result["matched_pairs"]),
-        "unmatched_mrds": len(match_result["unmatched_mrds"]),
-        "unmatched_pdf": len(match_result["unmatched_pdf"]),
+        "input_mrds": len(mrds_df),
+        "input_pdf": len(pdf_df),
+        "unmatched_mrds_pre_dedupe": len(match_result["unmatched_mrds"]),
+        "unmatched_pdf_pre_dedupe": len(match_result["unmatched_pdf"]),
+        "pre_dedupe_total": len(pre_dedupe),
+        "deduped_records": len(pre_dedupe) - len(unified),
         "total": len(unified),
     }
     return unified
