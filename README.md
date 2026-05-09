@@ -29,7 +29,8 @@ Shapefiles ──┘            │                        │
                            │                        └──► Spatial Enrichment
                            │
                            └──► Streamlit Visualization Layer
-```standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
+``` 
+standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
 - Data extraction (OCR, tables, metadata)
 - Entity recognition (lithology, commodity, grade, location)
 - Schema normalization
@@ -48,16 +49,6 @@ The result is a clean, consistent baseline dataset that can be extended and refi
 ### Geology Enrichment
 ![Geology Enrichment](docs/images/geology-tab.png)
 
-## Architecture
-
-```text
-PDF Reports ─┐
-MRDS CSVs ───┼──► Ingestion & Parsing ─► Entity Extraction ─► Schema Normalization ─► GeoParquet
-Shapefiles ──┘            │                        │
-                           │                        └──► Spatial Enrichment
-                           │
-                           └──► Streamlit Visualization Layer
-```
 
 ## Example Use Cases
 - Rapid integration of historical geological datasets
