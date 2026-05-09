@@ -103,6 +103,20 @@ Programmatic use:
 **enriched = enrich_with_geology("out/unified.parquet", "data/sgmc.shp")**
 ```
 
+## Streamlit Demo
+Run the local technical demo for PDF extraction, MRDS/PDF fusion, geology enrichment, map exploration, filtering, and GeoParquet downloads.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+The demo reads existing outputs such as `out/unified.parquet` and `out/enriched.parquet` when present, and can also trigger the pipeline from the sidebar. Set `OPENAI_API_KEY` before running PDF extraction or dataset fusion.
+
+Screenshot placeholder: add a screenshot of the Overview and Deposits Map tabs here before publishing the repository.
+
 **Project Status**
   Early-stage prototype
 
