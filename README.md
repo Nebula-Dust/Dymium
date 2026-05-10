@@ -22,21 +22,25 @@ Dymium focuses on solving the data standardization layer first:
 - spatially enrich deposits with geological context,
 - export interoperable GeoParquet datasets.
 
-```text
-PDF Reports ─┐
-MRDS CSVs ───┼──► Ingestion & Parsing ─► Entity Extraction ─► Schema Normalization ─► GeoParquet
-Shapefiles ──┘            │                        │
-                           │                        └──► Spatial Enrichment
-                           │
-                           └──► Streamlit Visualization Layer
-``` 
-standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
-- Data extraction (OCR, tables, metadata)
-- Entity recognition (lithology, commodity, grade, location)
-- Schema normalization
-- Cross-source data integration
+## Overview
+Dymium converts heterogeneous geological data--PDF reports, CSV datasets, and shapefiles--into a unified, standardized format suitable for machine learning and analysis. Geological data is abundant but fragmented across formats, schemas, and decades of inconsistent reporting. Most of it is locked in PDFs, legacy databases, or incompatible geospatial files. Dymium focuses on solving this bottleneck by automating:
+- PDF text extraction and entity recognition
+- MRDS schema normalization
+- Cross-source dataset fusion
+- Spatial geologic enrichment
 
 The result is a clean, consistent baseline dataset that can be extended and refined for downstream modeling.
+
+## Architecture
+
+```text
+PDF Reports -+
+MRDS CSVs ---+--> Ingestion & Parsing --> Entity Extraction --> Schema Normalization --> GeoParquet
+Shapefiles --+            |                        |
+                          |                        +--> Spatial Enrichment
+                          |
+                          +--> Streamlit Visualization Layer
+```
 
 ## Demo UI
 
@@ -49,6 +53,137 @@ The result is a clean, consistent baseline dataset that can be extended and refi
 ### Geology Enrichment
 ![Geology Enrichment](docs/images/geology-tab.png)
 
+## Before and After Transformation
+
+The example below uses project artifacts generated from the local development data:
+
+- `reports/minerals-10-00965-v3.pdf`
+- `rdbms-tab/MRDS.txt`
+- `geo_data/colorado_geology.shp`
+- `out/unified.parquet`
+- `out/enriched.parquet`
+- `docs/images/deposit-map.png`
+
+```text
+Geological PDF + MRDS TXT + geology shapefile
+        |
+        v
+PDF text/entity extraction + MRDS normalization
+        |
+        v
+MRDS/PDF fusion into GeoParquet
+        |
+        v
+Spatial geology join + Streamlit visualization
+```
+
+### Raw Input Examples
+
+PDF text extracted from `reports/minerals-10-00965-v3.pdf` begins with:
+
+```text
+minerals Review
+Carbonatite-Related REE Deposits: An Overview
+...
+Abstract: The rare earth elements (REEs) ...
+```
+
+For this PDF, `src.etl.pdf_ingest.extract_text_from_pdf` produced 89,411 extracted characters and 16 text chunks before LLM entity extraction.
+
+MRDS source row from `rdbms-tab/MRDS.txt`:
+
+```tsv
+i	dep_id	name	dev_stat	url	code_list	longitude	latitude
+1	10000013	"Moonshine Prospect"	"Occurrence"	"https://mrdata.usgs.gov/mrds/show-mrds.php?dep_id=10000013"	" AU CU "	-132.05371	55.14445
+```
+
+Raw geology attributes from `geo_data/colorado_geology.shp`:
+
+| name | age | type |
+| --- | --- | --- |
+| Rocky Mountain Front | Precambrian | Metamorphic |
+| Western Plateau | Paleozoic | Sedimentary |
+
+### Extracted and Normalized Records
+
+The MRDS row above is normalized into explicit schema fields and expanded commodity names:
+
+```json
+{
+  "record_id": "10000013",
+  "site_name": "Moonshine Prospect",
+  "development_status": "Occurrence",
+  "latitude": 55.14445,
+  "longitude": -132.05371,
+  "commodity_codes": ["AU", "CU"],
+  "commodities": ["gold", "copper"]
+}
+```
+
+A real PDF-derived record from `out/unified.parquet` shows how the pipeline preserves partial extraction results when location evidence is missing:
+
+```json
+{
+  "record_id": "pdf-fbfb17cd557038b0",
+  "site_name": "Bayan Obo REE-Nb-Fe deposit",
+  "latitude": null,
+  "longitude": null,
+  "commodities": ["rare earth elements", "niobium", "iron"],
+  "source": "pdf",
+  "confidence_score": 0.6,
+  "geometry": null
+}
+```
+
+### Final Standardized Output
+
+`out/unified.parquet` currently contains 294,727 fused records:
+
+| source | rows |
+| --- | ---: |
+| `mrds` | 294,698 |
+| `pdf` | 26 |
+| `mrds+pdf` | 3 |
+
+After geology enrichment with `geo_data/colorado_geology.shp`, the pipeline writes `out/enriched.parquet`. A real enriched GeoParquet row:
+
+```json
+{
+  "record_id": "10018057",
+  "site_name": "Mill Site, Overland",
+  "latitude": 40.13692,
+  "longitude": -105.41726,
+  "commodities": ["gold"],
+  "source": "mrds",
+  "confidence_score": 1.0,
+  "geologic_unit": "Rocky Mountain Front",
+  "lithology": "Metamorphic",
+  "geologic_age": "Precambrian",
+  "geometry": "POINT (-105.41726 40.13692)"
+}
+```
+
+### Final Visualization
+
+The Streamlit demo renders the standardized GeoParquet output as an interactive deposit map:
+
+![Deposit Map](docs/images/deposit-map.png)
+
+## Uncertainty and Failure Handling
+
+Dymium currently surfaces uncertainty through explicit fields, null values, validation warnings, and coverage metrics. It does not yet provide OCR confidence because the current PDF path uses PyMuPDF text extraction rather than a full OCR engine.
+
+Real examples from the current artifacts:
+
+| Signal | Real example | How it is handled |
+| --- | --- | --- |
+| Lower-confidence PDF extraction | `Bayan Obo REE-Nb-Fe deposit` has `confidence_score: 0.6` | The record is retained, but its lower score distinguishes it from validated MRDS rows. |
+| Missing PDF coordinates | 26 PDF-only rows have no geometry in `out/enriched.parquet` | `latitude`, `longitude`, and `geometry` remain null, so these records are excluded from point rendering and spatial joins. |
+| Partial geology coverage | Colorado geology enrichment matched 888 of 294,727 records, or 0.3% | Unmatched records keep null `geologic_unit`, `lithology`, and `geologic_age`; the Streamlit UI warns that regional layers intentionally cover only part of the global dataset. |
+| Coordinate validation | `tests/sanity_check_unified.py out/unified.parquet` reports 0 invalid coordinate rows | Invalid MRDS coordinates are dropped during ingestion; downstream sanity checks verify the exported geometry. |
+| Incomplete metadata | Many MRDS rows have null `grade` and `tonnage` | The schema preserves nulls rather than filling unsupported values. |
+
+This is intentionally conservative: Dymium prefers incomplete but traceable records over fabricated precision.
 
 ## Example Use Cases
 - Rapid integration of historical geological datasets
@@ -95,7 +230,7 @@ process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")
 Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
 ```bash
 export OPENAI_API_KEY=...
-python -m src.etl.pdf_ingest --input reports/example.pdf
+python -m src.etl.pdf_ingest --input reports/<example>.pdf
 ```
 
 Programmatic use:
@@ -107,28 +242,28 @@ deposits = process_pdf("/tmp/report.pdf")
 ## Unified Dataset Fusion
 Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
 ```bash
-python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/example.pdf --output out/unified.parquet
+python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/<example>.pdf --output out/unified.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.fusion import build_unified_dataset
 
-unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/example.pdf")
+unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/<example>.pdf")
 ```
 
 ## Geology Enrichment
 Enrich the unified dataset with SGMC-style geologic-unit context using spatial joins:
 
 ```bash
-python -m src.etl.geology --input out/unified.parquet --shapefile data/sgmc.shp --output out/enriched.parquet
+python -m src.etl.geology --input out/unified.parquet --shapefile geo_data/<example>.shp --output out/enriched.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.geology import enrich_with_geology
 
-enriched = enrich_with_geology("out/unified.parquet", "data/sgmc.shp")
+enriched = enrich_with_geology("out/unified.parquet", "geo_data/<example>.shp")
 ```
 
 ## Streamlit Demo
@@ -205,7 +340,7 @@ It does not attempt to fully solve:
 
 **Design Philosophy**
 By focusing on data standardization first, Dymium aims to unlock downstream applications in exploration, processing, and decision-making.
-Contributions are welcome. 
+Contributions are welcome.
 
 Areas of interest:
 
