@@ -356,4 +356,4 @@ Apache 2.0 License
 This project is an experimental prototype intended for research and development purposes. Accuracy of extracted geological data may vary depending on source quality.
 
 Contact
-For collaboration or questions, open an issue or reach out.
+For collaboration or questions, open an issue or reach out: dmpatterson070@gmail.com
