@@ -59,7 +59,7 @@ The example below uses project artifacts generated from the local development da
 
 - `reports/minerals-10-00965-v3.pdf`
 - `rdbms-tab/MRDS.txt`
-- `geological_data/colorado_geology.shp`
+- `geo_data/colorado_geology.shp`
 - `out/unified.parquet`
 - `out/enriched.parquet`
 - `docs/images/deposit-map.png`
@@ -97,7 +97,7 @@ i	dep_id	name	dev_stat	url	code_list	longitude	latitude
 1	10000013	"Moonshine Prospect"	"Occurrence"	"https://mrdata.usgs.gov/mrds/show-mrds.php?dep_id=10000013"	" AU CU "	-132.05371	55.14445
 ```
 
-Raw geology attributes from `geological_data/colorado_geology.shp`:
+Raw geology attributes from `geo_data/colorado_geology.shp`:
 
 | name | age | type |
 | --- | --- | --- |
@@ -145,7 +145,7 @@ A real PDF-derived record from `out/unified.parquet` shows how the pipeline pres
 | `pdf` | 26 |
 | `mrds+pdf` | 3 |
 
-After geology enrichment with `geological_data/colorado_geology.shp`, the pipeline writes `out/enriched.parquet`. A real enriched GeoParquet row:
+After geology enrichment with `geo_data/colorado_geology.shp`, the pipeline writes `out/enriched.parquet`. A real enriched GeoParquet row:
 
 ```json
 {
@@ -256,14 +256,14 @@ unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/<example>.pdf")
 Enrich the unified dataset with SGMC-style geologic-unit context using spatial joins:
 
 ```bash
-python -m src.etl.geology --input out/unified.parquet --shapefile geological_data/<example>.shp --output out/enriched.parquet
+python -m src.etl.geology --input out/unified.parquet --shapefile geo_data/<example>.shp --output out/enriched.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.geology import enrich_with_geology
 
-enriched = enrich_with_geology("out/unified.parquet", "geological_data/<example>.shp")
+enriched = enrich_with_geology("out/unified.parquet", "geo_data/<example>.shp")
 ```
 
 ## Streamlit Demo
