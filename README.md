@@ -57,7 +57,7 @@ Shapefiles --+            |                        |
 
 The example below uses project artifacts generated from the local development data:
 
-- `test_docs/minerals-10-00965-v3.pdf`
+- `reports/minerals-10-00965-v3.pdf`
 - `rdbms-tab/MRDS.txt`
 - `geological_data/colorado_geology.shp`
 - `out/unified.parquet`
@@ -79,7 +79,7 @@ Spatial geology join + Streamlit visualization
 
 ### Raw Input Examples
 
-PDF text extracted from `test_docs/minerals-10-00965-v3.pdf` begins with:
+PDF text extracted from `reports/minerals-10-00965-v3.pdf` begins with:
 
 ```text
 minerals Review
@@ -230,7 +230,7 @@ process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")
 Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
 ```bash
 export OPENAI_API_KEY=...
-python -m src.etl.pdf_ingest --input test_docs/minerals-10-00965-v3.pdf
+python -m src.etl.pdf_ingest --input reports/<example>.pdf
 ```
 
 Programmatic use:
@@ -242,28 +242,28 @@ deposits = process_pdf("/tmp/report.pdf")
 ## Unified Dataset Fusion
 Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
 ```bash
-python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf test_docs/minerals-10-00965-v3.pdf --output out/unified.parquet
+python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/<example>.pdf --output out/unified.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.fusion import build_unified_dataset
 
-unified = build_unified_dataset("rdbms-tab/MRDS.txt", "test_docs/minerals-10-00965-v3.pdf")
+unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/<example>.pdf")
 ```
 
 ## Geology Enrichment
 Enrich the unified dataset with SGMC-style geologic-unit context using spatial joins:
 
 ```bash
-python -m src.etl.geology --input out/unified.parquet --shapefile geological_data/colorado_geology.shp --output out/enriched.parquet
+python -m src.etl.geology --input out/unified.parquet --shapefile geological_data/<example>.shp --output out/enriched.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.geology import enrich_with_geology
 
-enriched = enrich_with_geology("out/unified.parquet", "geological_data/colorado_geology.shp")
+enriched = enrich_with_geology("out/unified.parquet", "geological_data/<example>.shp")
 ```
 
 ## Streamlit Demo
