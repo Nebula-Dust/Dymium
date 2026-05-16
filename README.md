@@ -88,7 +88,7 @@ Carbonatite-Related REE Deposits: An Overview
 Abstract: The rare earth elements (REEs) ...
 ```
 
-For this PDF, `src.etl.pdf_ingest.extract_text_from_pdf` produced 89,411 extracted characters and 16 text chunks before LLM entity extraction.
+For this PDF, `src.etl.document_ingest.ingest_pdf_document` reports 89,386 page-text characters and 16 deterministic chunks before LLM entity extraction.
 
 MRDS source row from `rdbms-tab/MRDS.txt`:
 
@@ -230,26 +230,44 @@ process_mrds("/tmp/MRDS.txt", "/tmp/mrds.parquet")
 Extract mineral deposit records from geological PDF reports with PyMuPDF and OpenAI structured JSON output:
 ```bash
 export OPENAI_API_KEY=...
-python -m src.etl.pdf_ingest --input reports/<example>.pdf
+python -m src.etl.pdf_ingest --input reports/minerals-10-00965-v3.pdf --metrics --artifacts-dir out/pdf_artifacts
 ```
 
 Programmatic use:
 ```python
-from src.etl.pdf_ingest import process_pdf
+from src.etl.pdf_ingest import process_pdf, process_pdf_with_report
 
 deposits = process_pdf("/tmp/report.pdf")
+result = process_pdf_with_report("/tmp/report.pdf", artifacts_dir="out/pdf_artifacts")
 ```
+
+## Reliable Document Ingestion
+Inspect PDF reliability before running LLM extraction:
+```bash
+python -m src.etl.document_ingest --input reports/minerals-10-00965-v3.pdf --artifacts-dir out/document_artifacts --no-ocr
+```
+
+The document-ingestion layer detects text-native, scanned, hybrid, missing, and malformed PDFs; preserves page-level text, table, chunk, and hash provenance; and emits structured metrics such as page count, text coverage, OCR routing, failed pages, table count, and warning/error counts.
+
+Generated artifacts include:
+- `document_ingestion_report.json`
+- `raw_text.txt`
+- `chunks.jsonl`
+- `tables.jsonl`
+
+OCR fallback is optional. If `pytesseract`, Pillow, or the Tesseract system binary is unavailable, scanned pages are retained with `ocr_backend_unavailable` warnings instead of being silently dropped.
+
 ## Unified Dataset Fusion
 Merge normalized MRDS records with PDF-extracted deposits and export a single GeoParquet dataset:
 ```bash
-python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/<example>.pdf --output out/unified.parquet
+python -m src.etl.fusion --csv rdbms-tab/MRDS.txt --pdf reports/minerals-10-00965-v3.pdf --output out/unified.parquet
 ```
 
 Programmatic use:
 ```python
 from src.etl.fusion import build_unified_dataset
 
-unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/<example>.pdf")
+unified = build_unified_dataset("rdbms-tab/MRDS.txt", "reports/minerals-10-00965-v3.pdf")
 ```
 
 ## Geology Enrichment

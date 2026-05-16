@@ -33,6 +33,10 @@ SOURCE_COLUMNS = [
     "grade",
     "tonnage",
     "source_url",
+    "source_pages",
+    "source_chunks",
+    "source_text_sha1",
+    "extraction_warnings",
 ]
 
 COMMODITY_MAP = {
@@ -41,11 +45,18 @@ COMMODITY_MAP = {
     "cu": "copper",
     "fe": "iron",
     "hg": "mercury",
+    "hree": "heavy rare earth elements",
+    "lree": "light rare earth elements",
     "nb": "niobium",
+    "p": "phosphate",
     "pb": "lead",
-    "ree": "rare earth elements",
+    "phosphate": "phosphate",
     "rare earth": "rare earth elements",
     "rare earth elements": "rare earth elements",
+    "ree": "rare earth elements",
+    "rees": "rare earth elements",
+    "sc": "scandium",
+    "th": "thorium",
     "zn": "zinc",
 }
 
@@ -170,6 +181,10 @@ def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any
         "grade": _first_present(pdf_record.get("grade"), mrds_record.get("grade")),
         "tonnage": _first_present(pdf_record.get("tonnage"), mrds_record.get("tonnage")),
         "source_url": _join_sources(mrds_record.get("source_url"), pdf_record.get("source_url")),
+        "source_pages": _join_lists(mrds_record.get("source_pages"), pdf_record.get("source_pages")),
+        "source_chunks": _join_lists(mrds_record.get("source_chunks"), pdf_record.get("source_chunks")),
+        "source_text_sha1": _join_sources(mrds_record.get("source_text_sha1"), pdf_record.get("source_text_sha1")),
+        "extraction_warnings": _join_lists(mrds_record.get("extraction_warnings"), pdf_record.get("extraction_warnings")),
     }
 
 
@@ -272,6 +287,8 @@ def _ensure_schema(dataframe):
     frame["grade"] = pd.to_numeric(frame["grade"], errors="coerce")
     frame["tonnage"] = pd.to_numeric(frame["tonnage"], errors="coerce")
     frame["commodities"] = frame["commodities"].map(lambda value: normalize_commodities(_as_list(value)))
+    for column in ("source_pages", "source_chunks", "extraction_warnings"):
+        frame[column] = frame[column].map(_normalize_list)
     return frame
 
 
@@ -338,6 +355,43 @@ def _first_present(*values: Any) -> Any:
 def _join_sources(*values: Any) -> str | None:
     sources = [str(value) for value in values if value is not None and value == value and str(value).strip()]
     return ";".join(dict.fromkeys(sources)) or None
+
+
+def _join_lists(*values: Any) -> list[Any]:
+    joined: list[Any] = []
+    for value in values:
+        for item in _normalize_list(value):
+            if item not in joined:
+                joined.append(item)
+    return joined
+
+
+def _normalize_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    try:
+        if value != value:
+            return []
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, list):
+        values = value
+    elif isinstance(value, (tuple, set)):
+        values = list(value)
+    else:
+        values = [value]
+    cleaned: list[Any] = []
+    for item in values:
+        if item is None:
+            continue
+        try:
+            if item != item:
+                continue
+        except (TypeError, ValueError):
+            pass
+        if item not in cleaned:
+            cleaned.append(item)
+    return cleaned
 
 
 def _as_list(value: Any) -> list[Any]:

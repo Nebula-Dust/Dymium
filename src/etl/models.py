@@ -34,18 +34,37 @@ class MineralDeposit(BaseModel):
     commod2: str | None = None
     development_status: str | None = None
     source_url: str | None = None
+    source_pages: list[int] = Field(default_factory=list)
+    source_chunks: list[str] = Field(default_factory=list)
+    source_text_sha1: str | None = None
+    extraction_warnings: list[str] = Field(default_factory=list)
+    raw_extraction: dict[str, Any] | None = None
     tonnage: float | None = Field(default=None, ge=0.0)
     grade: float | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
-    @field_validator("commodities", "commodity_codes", mode="before")
+    @field_validator("commodities", "commodity_codes", "source_chunks", "extraction_warnings", mode="before")
     @classmethod
-    def _coerce_list(cls, value: Any) -> list[str]:
+    def _coerce_string_list(cls, value: Any) -> list[str]:
         if value is None:
             return []
         if isinstance(value, str):
             return [value]
         return list(value)
+
+    @field_validator("source_pages", mode="before")
+    @classmethod
+    def _coerce_int_list(cls, value: Any) -> list[int]:
+        if value is None:
+            return []
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        cleaned: list[int] = []
+        for item in values:
+            try:
+                cleaned.append(int(item))
+            except (TypeError, ValueError):
+                continue
+        return cleaned
 
     @field_validator("commodities")
     @classmethod
@@ -57,7 +76,7 @@ class MineralDeposit(BaseModel):
     def _normalize_commodity_codes(cls, values: list[str]) -> list[str]:
         return _dedupe_clean(values, upper=True)
 
-    @field_validator("site_name", "commod1", "commod2", "development_status", "source_url", mode="before")
+    @field_validator("site_name", "commod1", "commod2", "development_status", "source_url", "source_text_sha1", mode="before")
     @classmethod
     def _empty_string_to_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
