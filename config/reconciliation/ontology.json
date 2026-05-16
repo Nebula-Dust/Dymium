@@ -1,0 +1,287 @@
+{
+  "version": "dymium-reconciliation-ontology-v1",
+  "commodities": {
+    "gold": {
+      "aliases": [
+        "au",
+        "gold",
+        "aurum"
+      ],
+      "confidence": 0.98
+    },
+    "silver": {
+      "aliases": [
+        "ag",
+        "silver"
+      ],
+      "confidence": 0.98
+    },
+    "copper": {
+      "aliases": [
+        "cu",
+        "copper"
+      ],
+      "confidence": 0.98
+    },
+    "lead": {
+      "aliases": [
+        "pb",
+        "lead"
+      ],
+      "confidence": 0.98
+    },
+    "zinc": {
+      "aliases": [
+        "zn",
+        "zinc"
+      ],
+      "confidence": 0.98
+    },
+    "iron": {
+      "aliases": [
+        "fe",
+        "iron"
+      ],
+      "confidence": 0.96
+    },
+    "niobium": {
+      "aliases": [
+        "nb",
+        "niobium"
+      ],
+      "confidence": 0.96
+    },
+    "thorium": {
+      "aliases": [
+        "th",
+        "thorium"
+      ],
+      "confidence": 0.95
+    },
+    "uranium": {
+      "aliases": [
+        "u",
+        "uranium"
+      ],
+      "confidence": 0.95
+    },
+    "phosphate": {
+      "aliases": [
+        "p",
+        "phosphate",
+        "phosphorus"
+      ],
+      "confidence": 0.9
+    },
+    "rare earth elements": {
+      "aliases": [
+        "ree",
+        "rees",
+        "rare earth",
+        "rare earth element",
+        "rare earth elements",
+        "lree",
+        "hree",
+        "ndpr"
+      ],
+      "confidence": 0.9
+    },
+    "scandium": {
+      "aliases": [
+        "sc",
+        "scandium"
+      ],
+      "confidence": 0.94
+    },
+    "tungsten": {
+      "aliases": [
+        "w",
+        "tungsten"
+      ],
+      "confidence": 0.94
+    }
+  },
+  "lithologies": {
+    "carbonatite": {
+      "aliases": [
+        "carbonatite",
+        "ndpr-bearing carbonatite",
+        "ree carbonatite",
+        "carbonatite complex"
+      ],
+      "confidence": 0.9,
+      "deposit_model": "carbonatite-related REE system"
+    },
+    "granite": {
+      "aliases": [
+        "granite",
+        "granitic",
+        "granitoid"
+      ],
+      "confidence": 0.9
+    },
+    "basalt": {
+      "aliases": [
+        "basalt",
+        "basaltic"
+      ],
+      "confidence": 0.9
+    },
+    "limestone": {
+      "aliases": [
+        "limestone",
+        "carbonate rock"
+      ],
+      "confidence": 0.86
+    },
+    "sandstone": {
+      "aliases": [
+        "sandstone",
+        "arenite"
+      ],
+      "confidence": 0.86
+    },
+    "shale": {
+      "aliases": [
+        "shale",
+        "mudstone"
+      ],
+      "confidence": 0.84
+    },
+    "gneiss": {
+      "aliases": [
+        "gneiss",
+        "gneissic"
+      ],
+      "confidence": 0.86
+    },
+    "schist": {
+      "aliases": [
+        "schist",
+        "schistose"
+      ],
+      "confidence": 0.86
+    },
+    "volcanic": {
+      "aliases": [
+        "volcanic",
+        "volcanics",
+        "volcaniclastic"
+      ],
+      "confidence": 0.78
+    }
+  },
+  "geologic_ages": {
+    "Holocene": [
+      "holocene"
+    ],
+    "Pleistocene": [
+      "pleistocene"
+    ],
+    "Quaternary": [
+      "quaternary"
+    ],
+    "Tertiary": [
+      "tertiary",
+      "paleogene",
+      "neogene"
+    ],
+    "Cretaceous": [
+      "cretaceous"
+    ],
+    "Jurassic": [
+      "jurassic"
+    ],
+    "Triassic": [
+      "triassic"
+    ],
+    "Paleozoic": [
+      "paleozoic"
+    ],
+    "Mesozoic": [
+      "mesozoic"
+    ],
+    "Cenozoic": [
+      "cenozoic"
+    ],
+    "Proterozoic": [
+      "proterozoic"
+    ],
+    "Archean": [
+      "archean",
+      "archaean"
+    ],
+    "Precambrian": [
+      "precambrian",
+      "pre-cambrian"
+    ]
+  },
+  "source_trust": {
+    "MRDS": 0.92,
+    "GEOROC": 0.8,
+    "PetDB": 0.8,
+    "UNKNOWN": 0.45
+  },
+  "units": {
+    "percent": {
+      "aliases": [
+        "%",
+        "wt%",
+        "weight percent",
+        "percent",
+        "pct"
+      ],
+      "confidence": 0.92
+    },
+    "ppm": {
+      "aliases": [
+        "ppm",
+        "parts per million",
+        "mg/kg"
+      ],
+      "confidence": 0.92
+    },
+    "ppb": {
+      "aliases": [
+        "ppb",
+        "parts per billion",
+        "ug/kg"
+      ],
+      "confidence": 0.9
+    },
+    "metric tons": {
+      "aliases": [
+        "t",
+        "tonne",
+        "tonnes",
+        "metric ton",
+        "metric tons"
+      ],
+      "confidence": 0.88
+    },
+    "million metric tons": {
+      "aliases": [
+        "mt",
+        "million tonnes",
+        "million metric tons"
+      ],
+      "confidence": 0.86
+    },
+    "Ma": {
+      "aliases": [
+        "ma",
+        "m.y.",
+        "million years"
+      ],
+      "confidence": 0.86
+    },
+    "Ga": {
+      "aliases": [
+        "ga",
+        "b.y.",
+        "billion years"
+      ],
+      "confidence": 0.86
+    }
+  }
+}
