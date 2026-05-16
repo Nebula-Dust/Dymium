@@ -1,0 +1,34 @@
+{
+  "geometry_confidence": [
+    {
+      "parent": "coordinates_confidence",
+      "min_parent_score": 0.50,
+      "ceiling": 0.20,
+      "reason": "geometry depends on valid coordinate evidence"
+    }
+  ],
+  "lithology_confidence": [
+    {
+      "parent": "geometry_confidence",
+      "min_parent_score": 0.40,
+      "ceiling": 0.45,
+      "reason": "lithology enrichment depends on spatial join geometry"
+    }
+  ],
+  "geologic_age_confidence": [
+    {
+      "parent": "geometry_confidence",
+      "min_parent_score": 0.40,
+      "ceiling": 0.45,
+      "reason": "geologic age enrichment depends on spatial join geometry"
+    }
+  ],
+  "record_confidence": [
+    {
+      "parent": "coordinates_confidence",
+      "min_parent_score": 0.25,
+      "ceiling": 0.70,
+      "reason": "records with unresolved location uncertainty cannot score as high-confidence spatial records"
+    }
+  ]
+}

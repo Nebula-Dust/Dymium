@@ -1,0 +1,12 @@
+{
+  "recency_weighting_enabled": false,
+  "source_timestamp_fields": [
+    "source_timestamp",
+    "publication_date",
+    "report_date",
+    "updated_at"
+  ],
+  "stale_after_days": 3650,
+  "stale_penalty": 0.05,
+  "historical_conflict_penalty": 0.08
+}

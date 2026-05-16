@@ -1,0 +1,7 @@
+{
+  "low": 0.40,
+  "medium": 0.70,
+  "high": 0.85,
+  "critical_floor": 0.10,
+  "default_ceiling": 1.0
+}

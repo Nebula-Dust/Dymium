@@ -1,0 +1,23 @@
+{
+  "missing_required_field": 0.45,
+  "missing_optional_field": 0.12,
+  "invalid_coordinates": 0.65,
+  "partial_coordinates": 0.55,
+  "source_conflict": 0.18,
+  "normalization_fallback": 0.06,
+  "warning_max": 0.18,
+  "severity": {
+    "info": 0.01,
+    "warning": 0.05,
+    "severe": 0.15,
+    "critical": 0.45
+  },
+  "missing_geology_field": 0.2,
+  "missing_assay": 0.18,
+  "invalid_geometry": 0.55,
+  "commodity_conflict": 0.1,
+  "geology_conflict": 0.08,
+  "assay_conflict": 0.1,
+  "record_conflict": 0.04,
+  "preliminary_pdf_warning": 0.08
+}

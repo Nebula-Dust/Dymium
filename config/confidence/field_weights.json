@@ -1,0 +1,11 @@
+{
+  "site_name_confidence": 0.16,
+  "coordinates_confidence": 0.22,
+  "commodity_confidence": 0.20,
+  "lithology_confidence": 0.09,
+  "geologic_age_confidence": 0.07,
+  "operator_confidence": 0.03,
+  "assay_confidence": 0.06,
+  "source_url_confidence": 0.04,
+  "geometry_confidence": 0.13
+}

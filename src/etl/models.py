@@ -44,6 +44,17 @@ class MineralDeposit(BaseModel):
     tonnage: float | None = Field(default=None, ge=0.0)
     grade: float | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    site_name_confidence: dict[str, Any] = Field(default_factory=dict)
+    coordinates_confidence: dict[str, Any] = Field(default_factory=dict)
+    commodity_confidence: dict[str, Any] = Field(default_factory=dict)
+    lithology_confidence: dict[str, Any] = Field(default_factory=dict)
+    geologic_age_confidence: dict[str, Any] = Field(default_factory=dict)
+    operator_confidence: dict[str, Any] = Field(default_factory=dict)
+    assay_confidence: dict[str, Any] = Field(default_factory=dict)
+    source_url_confidence: dict[str, Any] = Field(default_factory=dict)
+    geometry_confidence: dict[str, Any] = Field(default_factory=dict)
+    record_confidence: dict[str, Any] = Field(default_factory=dict)
+    stage_confidence: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("commodities", "commodity_codes", "source_chunks", "extraction_warnings", mode="before")
     @classmethod
@@ -54,7 +65,7 @@ class MineralDeposit(BaseModel):
             return [value]
         return list(value)
 
-    @field_validator("provenance", "raw_extraction", mode="before")
+    @field_validator("provenance", "raw_extraction", "site_name_confidence", "coordinates_confidence", "commodity_confidence", "lithology_confidence", "geologic_age_confidence", "operator_confidence", "assay_confidence", "source_url_confidence", "geometry_confidence", "record_confidence", "stage_confidence", mode="before")
     @classmethod
     def _coerce_dict(cls, value: Any) -> dict[str, Any] | None:
         if value is None:

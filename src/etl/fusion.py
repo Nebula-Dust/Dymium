@@ -16,6 +16,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from .confidence import CONFIDENCE_COLUMNS, attach_record_confidence, load_confidence_config, normalization_event, validation_report
 from .ingest_mrds import load_mrds, normalize_mrds
 from .models import MineralDeposit
 from .pdf_ingest import process_pdf
@@ -40,6 +41,7 @@ SOURCE_COLUMNS = [
     "source_text_sha1",
     "extraction_warnings",
     "provenance",
+    *CONFIDENCE_COLUMNS,
 ]
 
 COMMODITY_MAP = {
@@ -108,6 +110,9 @@ def mrds_to_dataframe(mrds_df):
     frame["tonnage"] = pd.to_numeric(mrds_df.get("tonnage"), errors="coerce")
     frame["source_url"] = mrds_df.get("source_url")
     frame["provenance"] = mrds_df.get("provenance")
+    for column in CONFIDENCE_COLUMNS:
+        if column in mrds_df.columns:
+            frame[column] = mrds_df[column]
     return _ensure_schema(frame)
 
 
@@ -194,7 +199,7 @@ def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any
         "extraction_warnings": _join_lists(mrds_record.get("extraction_warnings"), pdf_record.get("extraction_warnings")),
     }
     merged["provenance"] = _merge_record_provenance(mrds_record, pdf_record, merged, match_metadata=match_metadata)
-    return merged
+    return attach_record_confidence(merged, stage="fusion", config=load_confidence_config())
 
 
 def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
@@ -290,6 +295,7 @@ def _merge_record_provenance(
                 confidence=merged.get("confidence_score"),
                 transformations=transformations,
                 normalization_decisions=["MRDS/PDF candidates retained in field history"],
+                normalization_events=_fusion_normalization_events(field, merged.get(field)),
             ),
         )
 
@@ -353,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     counts = unified.attrs.get("match_counts", {})
+    counts["confidence_report"] = validation_report(unified, stage="fusion")
     print(json.dumps(counts, indent=2, sort_keys=True))
     print(f"Output: {args.output}")
     return 0
@@ -375,7 +382,41 @@ def _ensure_schema(dataframe):
         frame[column] = frame[column].map(_normalize_list)
     frame["record_uuid"] = frame.apply(_ensure_record_uuid, axis=1)
     frame["provenance"] = frame.apply(lambda row: ensure_provenance(row.get("provenance"), record_uuid=row.get("record_uuid")), axis=1)
+    if _needs_confidence(frame):
+        config = load_confidence_config()
+        frame = pd.DataFrame.from_records(
+            [attach_record_confidence(record, stage="fusion_input", config=config) for record in frame.to_dict(orient="records")]
+        )
     return frame
+
+
+def _fusion_normalization_events(field: str, value: Any) -> list[dict[str, Any]]:
+    if field == "commodities":
+        return [
+            normalization_event(
+                "cross_source_commodity_union",
+                normalized_value=_json_ready(value),
+                ontology_version="dymium-fusion-v1",
+                confidence_delta=0.02,
+                notes="MRDS and PDF commodity candidates unioned with source history retained",
+            )
+        ]
+    if field == "confidence_score":
+        return [
+            normalization_event(
+                "record_confidence_rollup",
+                normalized_value=_json_ready(value),
+                ontology_version="dymium-confidence-v1",
+                confidence_delta=0.0,
+            )
+        ]
+    return []
+
+
+def _needs_confidence(dataframe) -> bool:
+    if "record_confidence" not in dataframe.columns:
+        return True
+    return any(not isinstance(value, dict) or "score" not in value for value in dataframe["record_confidence"])
 
 
 def _ensure_record_uuid(row: Any) -> str:

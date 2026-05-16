@@ -17,6 +17,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from .confidence import attach_record_confidence, load_confidence_config, normalization_event, validation_report
 from .document_ingest import DocumentIngestionResult, ingest_pdf_document, write_ingestion_artifacts
 from .ingest_mrds import normalize_commodities
 from .llm_extract import extract_deposits_from_chunk
@@ -126,20 +127,21 @@ def merge_results(results: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
 
 
 def score_confidence(record: dict[str, Any], appearances: int = 1) -> float:
-    """Assign deterministic confidence based on available evidence."""
+    """Assign preliminary deterministic confidence before field scoring."""
 
-    score = 0.0
+    config = load_confidence_config()
+    score = (config.source_score("PDF") + config.method_score("llm_structured_json")) / 2
     if _is_valid_latitude(record.get("latitude")) and _is_valid_longitude(record.get("longitude")):
-        score += 0.4
+        score += config.modifier("pdf_preliminary_valid_coordinates")
     if record.get("commodities"):
-        score += 0.3
+        score += config.modifier("pdf_preliminary_commodity_present")
     if _clean_optional_string(record.get("site_name")):
-        score += 0.2
+        score += config.modifier("pdf_preliminary_site_name_present")
     if appearances > 1:
-        score += 0.1
+        score += config.modifier("duplicate_site_agreement")
     warnings = [str(value) for value in _as_list(record.get("extraction_warnings"))]
     if any(value.startswith(("invalid_", "low_ocr_confidence", "ocr_text_quality_low")) for value in warnings):
-        score -= 0.1
+        score -= config.penalty("preliminary_pdf_warning")
     return min(round(max(score, 0.0), 2), 1.0)
 
 
@@ -273,6 +275,14 @@ def _build_extraction_metrics(
 ) -> dict[str, Any]:
     confidences = [_model_to_dict(deposit).get("confidence_score") for deposit in deposits]
     numeric_confidences = [float(value) for value in confidences if value is not None]
+    report = {}
+    if deposits:
+        try:
+            pd = __import__("pandas")
+            records = [_model_to_dict(deposit) for deposit in deposits]
+            report = validation_report(pd.DataFrame.from_records(records), stage="pdf_extraction")
+        except Exception:  # pragma: no cover - metrics should never fail extraction.
+            report = {}
     return {
         **document.metrics,
         "raw_entity_candidates": len(raw_records),
@@ -281,6 +291,7 @@ def _build_extraction_metrics(
         "invalid_deposits": max(len(merged_records) - len(deposits), 0),
         "llm_chunk_failures": llm_chunk_failures,
         "confidence_distribution": _confidence_distribution(numeric_confidences),
+        "confidence_validation_report": report,
     }
 
 
@@ -347,7 +358,7 @@ def _prepare_record(record: dict[str, Any], *, source_path: str | Path | None) -
         "raw_extraction": _raw_snapshot(record),
     }
     prepared["provenance"] = _build_pdf_provenance(record, prepared, source_path=source_path)
-    return prepared
+    return attach_record_confidence(prepared, stage="pdf_extraction", config=load_confidence_config())
 
 
 def _build_pdf_provenance(record: dict[str, Any], prepared: dict[str, Any], *, source_path: str | Path | None) -> dict[str, Any]:
@@ -408,6 +419,7 @@ def _build_pdf_provenance(record: dict[str, Any], prepared: dict[str, Any], *, s
                 confidence=confidence if value is not None else 0.0,
                 transformations=transformations,
                 normalization_decisions=decisions,
+                normalization_events=_pdf_normalization_events(field, record, value),
                 warnings=prepared.get("extraction_warnings"),
             ),
         )
@@ -457,6 +469,44 @@ def _coordinate_decisions(raw_record: dict[str, Any], field: str, normalized_val
     if raw_value not in (None, "") and normalized_value is None:
         decisions.append(f"invalid_{field}_nulled:{raw_value}")
     return decisions
+
+
+def _pdf_normalization_events(field: str, raw_record: dict[str, Any], normalized_value: Any) -> list[dict[str, Any]]:
+    raw_value = raw_record.get(field)
+    if field == "commodities":
+        return [
+            normalization_event(
+                "commodity_alias_expansion",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="dymium-commodity-v1",
+                confidence_delta=0.01,
+                notes="LLM commodity string normalized through Dymium commodity aliases",
+            )
+        ]
+    if field in {"latitude", "longitude"}:
+        delta = -0.20 if raw_value not in (None, "") and normalized_value is None else 0.01
+        event_type = "invalid_coordinate_rejection" if delta < 0 else "coordinate_numeric_parse"
+        return [
+            normalization_event(
+                event_type,
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="epsg-4326-range",
+                confidence_delta=delta,
+            )
+        ]
+    if _json_ready(raw_value) != _json_ready(normalized_value):
+        return [
+            normalization_event(
+                "llm_value_coercion",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="dymium-schema-v1",
+                confidence_delta=-0.01,
+            )
+        ]
+    return []
 
 
 def _normalization_decisions(raw_value: Any, normalized_value: Any) -> list[str]:

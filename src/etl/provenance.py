@@ -96,6 +96,7 @@ def field_event(
     normalization_decisions: list[str] | tuple[str, ...] | None = None,
     warnings: list[str] | tuple[str, ...] | None = None,
     supersedes: list[str] | tuple[str, ...] | None = None,
+    normalization_events: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None = None,
     timestamp: str | None = None,
     source_priority: int | None = None,
 ) -> dict[str, Any]:
@@ -126,6 +127,7 @@ def field_event(
         "normalization_decisions": _clean_string_list(normalization_decisions),
         "warnings": _clean_string_list(warnings),
         "supersedes": _clean_string_list(supersedes),
+        "normalization_events": _clean_event_list(normalization_events),
     }
 
 
@@ -307,6 +309,7 @@ def _current_view(event: dict[str, Any]) -> dict[str, Any]:
         "normalization_decisions",
         "warnings",
         "supersedes",
+        "normalization_events",
         "value_repr",
     )
     return {key: event.get(key) for key in keys}
@@ -328,6 +331,23 @@ def _conflict_candidate(event: dict[str, Any]) -> dict[str, Any]:
 
 def _candidate_value(event: dict[str, Any]) -> str:
     return str(event.get("value_repr"))
+
+
+def _clean_event_list(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    values = value if isinstance(value, (list, tuple, set)) else [value]
+    cleaned: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        event_id = str(item.get("event_id") or _value_repr(item))
+        if event_id in seen:
+            continue
+        cleaned.append(item)
+        seen.add(event_id)
+    return cleaned
 
 
 def _clean_confidence(value: float | int | None) -> float | None:

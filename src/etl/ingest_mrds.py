@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from .confidence import attach_record_confidence, load_confidence_config, normalization_event
 from .models import MineralDeposit
 from .provenance import append_lineage, deterministic_uuid, empty_provenance, field_event, set_field
 
@@ -154,6 +155,10 @@ def normalize_mrds(dataframe):
         _build_mrds_provenance(valid_raw.iloc[index], normalized.iloc[index], source_path=source_path)
         for index in range(len(normalized))
     ]
+    confidence_config = load_confidence_config()
+    normalized = pd.DataFrame.from_records(
+        [attach_record_confidence(record, stage="mrds_normalization", config=confidence_config) for record in normalized.to_dict(orient="records")]
+    )
     normalized.attrs["dropped_invalid_records"] = invalid_count
     return normalized
 
@@ -209,9 +214,54 @@ def _build_mrds_provenance(raw_row, normalized_row, *, source_path: str | None) 
                 confidence=1.0 if value is not None and value == value else 0.0,
                 transformations=transformations,
                 normalization_decisions=decisions,
+                normalization_events=_mrds_normalization_events(field, raw_value, value),
             ),
         )
     return provenance
+
+
+def _mrds_normalization_events(field: str, raw_value: object, normalized_value: object) -> list[dict[str, object]]:
+    if field == "commodities":
+        return [
+            normalization_event(
+                "commodity_alias_expansion",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="dymium-commodity-v1",
+                confidence_delta=0.03,
+            )
+        ]
+    if field == "commodity_codes":
+        return [
+            normalization_event(
+                "commodity_code_tokenization",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="mrds-code-list",
+                confidence_delta=0.02,
+            )
+        ]
+    if field in {"latitude", "longitude"}:
+        return [
+            normalization_event(
+                "coordinate_numeric_parse",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="epsg-4326-range",
+                confidence_delta=0.02,
+            )
+        ]
+    if _json_ready(raw_value) != _json_ready(normalized_value):
+        return [
+            normalization_event(
+                "schema_value_cleanup",
+                source_value=_json_ready(raw_value),
+                normalized_value=_json_ready(normalized_value),
+                ontology_version="dymium-schema-v1",
+                confidence_delta=0.01,
+            )
+        ]
+    return []
 
 
 def iter_deposits(dataframe) -> Iterable[MineralDeposit]:

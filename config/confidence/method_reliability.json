@@ -1,0 +1,20 @@
+{
+  "schema_normalization": 0.94,
+  "coordinate_validation": 0.90,
+  "commodity_code_mapping": 0.92,
+  "commodity_normalization": 0.82,
+  "source_priority_selection": 0.78,
+  "source_union": 0.80,
+  "confidence_merge": 0.76,
+  "openai_structured_json": 0.62,
+  "llm_structured_json": 0.58,
+  "pdf_text_or_ocr_routing": 0.70,
+  "ocr_text_extraction": 0.48,
+  "spatial_join_with_intersects_fallback": 0.82,
+  "spatial_join_attribute_transfer": 0.84,
+  "lithology_normalization": 0.70,
+  "geologic_age_normalization": 0.70,
+  "deterministic_record_id": 0.96,
+  "deterministic_uuid": 0.96,
+  "pydantic_schema_validation": 0.86
+}

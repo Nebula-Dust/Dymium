@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .confidence import CONFIDENCE_COLUMNS, attach_record_confidence, load_confidence_config, normalization_event, validation_report
 from .provenance import append_lineage, deterministic_uuid, ensure_provenance, field_event, set_field
 
 LOGGER = logging.getLogger(__name__)
@@ -214,6 +215,7 @@ def spatial_join(deposits_gdf, geology_gdf):
     source_path = geology_gdf.attrs.get("source_path")
     joined["record_uuid"] = joined.apply(_ensure_record_uuid, axis=1)
     joined["provenance"] = joined.apply(lambda row: _append_geology_provenance(row, source_path=source_path), axis=1)
+    joined = _append_geology_confidence(joined)
     joined = joined.drop(
         columns=[
             "geologic_age_raw",
@@ -285,6 +287,7 @@ def _append_geology_provenance(row: Any, *, source_path: str | None) -> dict[str
                 confidence=1.0,
                 transformations=transformations,
                 normalization_decisions=["geologic context assigned from containing polygon"],
+                normalization_events=_geology_normalization_events(field, value, source_field),
             ),
         )
     return provenance
@@ -357,7 +360,9 @@ def main(argv: list[str] | None = None) -> int:
     matched = int(enriched["geologic_unit"].notna().sum()) if "geologic_unit" in enriched.columns else 0
     total = len(enriched)
     percent = (matched / total * 100.0) if total else 0.0
-    print(json.dumps({"total_deposits": total, "matched_geology": matched, "matched_percent": round(percent, 2)}, indent=2, sort_keys=True))
+    summary = {"total_deposits": total, "matched_geology": matched, "matched_percent": round(percent, 2)}
+    summary["confidence_report"] = validation_report(enriched, stage="geology_enrichment")
+    print(json.dumps(summary, indent=2, sort_keys=True))
     print(f"Output: {args.output}")
     return 0
 

@@ -1,0 +1,20 @@
+{
+  "site_name_present": 0.08,
+  "coordinate_valid": 0.16,
+  "coordinate_geology_match": 0.08,
+  "commodity_present": 0.1,
+  "commodity_multi_source": 0.07,
+  "geology_field_present": 0.08,
+  "geology_spatial_assignment": 0.08,
+  "optional_field_present": 0.08,
+  "assay_present": 0.1,
+  "grade_and_tonnage_present": 0.05,
+  "geometry_valid_coordinates": 0.12,
+  "geometry_field_present": 0.05,
+  "geometry_geology_intersection": 0.08,
+  "cross_source_history": 0.04,
+  "pdf_preliminary_valid_coordinates": 0.1,
+  "pdf_preliminary_commodity_present": 0.08,
+  "pdf_preliminary_site_name_present": 0.06,
+  "duplicate_site_agreement": 0.05
+}

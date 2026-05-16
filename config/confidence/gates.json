@@ -1,0 +1,52 @@
+{
+  "critical_gates": [
+    {
+      "field": "coordinates_confidence",
+      "condition": "invalid_coordinates",
+      "ceiling": 0.10,
+      "severity": "critical",
+      "reason": "impossible or invalid coordinates"
+    },
+    {
+      "field": "geometry_confidence",
+      "condition": "invalid_geometry",
+      "ceiling": 0.15,
+      "severity": "critical",
+      "reason": "geometry is invalid or absent"
+    },
+    {
+      "field": "record_confidence",
+      "condition": "missing_provenance",
+      "ceiling": 0.55,
+      "severity": "severe",
+      "reason": "record lacks embedded provenance"
+    },
+    {
+      "field": "record_confidence",
+      "condition": "unresolved_conflicts",
+      "ceiling": 0.75,
+      "severity": "warning",
+      "reason": "source conflict requires downstream review"
+    },
+    {
+      "field": "stage_confidence",
+      "condition": "corrupted_ocr",
+      "ceiling": 0.40,
+      "severity": "critical",
+      "reason": "OCR output was marked corrupted or gibberish"
+    }
+  ],
+  "warning_severity_rules": {
+    "invalid_latitude*": "critical",
+    "invalid_longitude*": "critical",
+    "partial_coordinates": "severe",
+    "low_ocr_confidence*": "severe",
+    "ocr_text_quality_low*": "severe",
+    "ocr_gibberish*": "critical",
+    "corrupted_ocr*": "critical",
+    "missing_crs*": "severe",
+    "malformed_schema*": "critical",
+    "duplicate_site_name_merged": "warning",
+    "missing_page_provenance": "warning"
+  }
+}
