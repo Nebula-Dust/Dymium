@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from .models import MineralDeposit
+from .provenance import append_lineage, deterministic_uuid, empty_provenance, field_event, set_field
 
 LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ def load_mrds(input_path: str | Path):
     pd = _require_pandas()
     path = Path(input_path)
     delimiter = sniff_delimiter(path)
-    return pd.read_csv(
+    dataframe = pd.read_csv(
         path,
         sep=delimiter,
         dtype="string",
@@ -102,6 +103,8 @@ def load_mrds(input_path: str | Path):
         quoting=csv.QUOTE_MINIMAL,
         low_memory=False,
     )
+    dataframe.attrs["source_path"] = str(path)
+    return dataframe
 
 
 def normalize_mrds(dataframe):
@@ -143,9 +146,72 @@ def normalize_mrds(dataframe):
     if invalid_count:
         LOGGER.warning("Dropping %s invalid MRDS records with missing IDs or invalid coordinates.", invalid_count)
 
+    source_path = str(dataframe.attrs.get("source_path") or "") or None
+    valid_raw = df.loc[valid_mask].reset_index(drop=True)
     normalized = normalized.loc[valid_mask].reset_index(drop=True)
+    normalized["record_uuid"] = normalized["record_id"].map(lambda value: deterministic_uuid("mrds", value))
+    normalized["provenance"] = [
+        _build_mrds_provenance(valid_raw.iloc[index], normalized.iloc[index], source_path=source_path)
+        for index in range(len(normalized))
+    ]
     normalized.attrs["dropped_invalid_records"] = invalid_count
     return normalized
+
+
+def _build_mrds_provenance(raw_row, normalized_row, *, source_path: str | None) -> dict[str, object]:
+    record_id = _clean_scalar(normalized_row.get("record_id"))
+    record_uuid = deterministic_uuid("mrds", record_id)
+    provenance = empty_provenance(record_uuid=record_uuid)
+    provenance = append_lineage(
+        provenance,
+        step="mrds_normalization",
+        method="schema_normalization",
+        inputs=[source_path or "MRDS"],
+        outputs=[str(record_id or "")],
+        confidence=1.0,
+        details={"source_system": "MRDS", "source_priority": 90},
+    )
+
+    field_specs = {
+        "record_id": ("record_id", "schema_normalization", ["stable_identifier_mapping"]),
+        "site_name": ("site_name", "schema_normalization", ["text_cleanup"]),
+        "development_status": ("development_status", "schema_normalization", ["text_cleanup"]),
+        "source_url": ("source_url", "schema_normalization", ["source_url_retention"]),
+        "latitude": ("latitude", "coordinate_validation", ["numeric_coercion", "coordinate_range_validation"]),
+        "longitude": ("longitude", "coordinate_validation", ["numeric_coercion", "coordinate_range_validation"]),
+        "tonnage": ("tonnage", "schema_normalization", ["numeric_coercion"]),
+        "grade": ("grade", "schema_normalization", ["numeric_coercion"]),
+        "commod1": ("commod1", "commodity_code_mapping", ["commodity_abbreviation_selection"]),
+        "commod2": ("commod2", "commodity_code_mapping", ["commodity_abbreviation_selection"]),
+        "commodity_codes": ("commodity_text", "commodity_code_mapping", ["commodity_code_tokenization"]),
+        "commodities": ("commodity_text", "commodity_normalization", ["commodity_abbreviation_expansion", "lowercase_deduplication"]),
+    }
+    for field, (alias_key, method, transformations) in field_specs.items():
+        value = normalized_row.get(field)
+        source_field = _first_existing_alias(raw_row, COLUMN_ALIASES.get(alias_key, (alias_key,)))
+        raw_value = raw_row.get(source_field) if source_field else None
+        decisions = []
+        if source_field is None:
+            decisions.append("source_field_missing")
+        elif str(raw_value) != str(value):
+            decisions.append(f"normalized_from:{raw_value}")
+        provenance = set_field(
+            provenance,
+            field,
+            field_event(
+                field,
+                _json_ready(value),
+                source="MRDS",
+                source_file=source_path,
+                source_record_id=record_id,
+                source_field=source_field,
+                method=method,
+                confidence=1.0 if value is not None and value == value else 0.0,
+                transformations=transformations,
+                normalization_decisions=decisions,
+            ),
+        )
+    return provenance
 
 
 def iter_deposits(dataframe) -> Iterable[MineralDeposit]:
@@ -210,6 +276,24 @@ def sniff_delimiter(path: Path) -> str:
     except csv.Error:
         first_line = sample.splitlines()[0] if sample else ""
         return "\t" if first_line.count("\t") >= first_line.count(",") else ","
+
+
+def _first_existing_alias(row, aliases: Iterable[str]) -> str | None:
+    for alias in aliases:
+        if alias in row.index:
+            return alias
+    return None
+
+
+def _json_ready(value: object) -> object:
+    try:
+        if value != value:  # NaN / NA
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return value
 
 
 def _split_commodities(value: object) -> list[str]:

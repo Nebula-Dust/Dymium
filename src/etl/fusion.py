@@ -19,11 +19,13 @@ from typing import Any
 from .ingest_mrds import load_mrds, normalize_mrds
 from .models import MineralDeposit
 from .pdf_ingest import process_pdf
+from .provenance import append_lineage, deterministic_uuid, empty_provenance, ensure_provenance, field_event, merge_field_histories, set_field
 
 LOGGER = logging.getLogger(__name__)
 
 SOURCE_COLUMNS = [
     "record_id",
+    "record_uuid",
     "site_name",
     "latitude",
     "longitude",
@@ -37,6 +39,7 @@ SOURCE_COLUMNS = [
     "source_chunks",
     "source_text_sha1",
     "extraction_warnings",
+    "provenance",
 ]
 
 COMMODITY_MAP = {
@@ -94,6 +97,7 @@ def mrds_to_dataframe(mrds_df):
     pd = _require_pandas()
     frame = pd.DataFrame(index=mrds_df.index)
     frame["record_id"] = mrds_df.get("record_id")
+    frame["record_uuid"] = mrds_df.get("record_uuid")
     frame["site_name"] = mrds_df.get("site_name")
     frame["latitude"] = pd.to_numeric(mrds_df.get("latitude"), errors="coerce")
     frame["longitude"] = pd.to_numeric(mrds_df.get("longitude"), errors="coerce")
@@ -103,6 +107,7 @@ def mrds_to_dataframe(mrds_df):
     frame["grade"] = pd.to_numeric(mrds_df.get("grade"), errors="coerce")
     frame["tonnage"] = pd.to_numeric(mrds_df.get("tonnage"), errors="coerce")
     frame["source_url"] = mrds_df.get("source_url")
+    frame["provenance"] = mrds_df.get("provenance")
     return _ensure_schema(frame)
 
 
@@ -161,7 +166,7 @@ def match_records(mrds_df, pdf_df, *, name_threshold: float = 88.0, distance_thr
     }
 
 
-def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any]) -> dict[str, Any]:
+def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any], match_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
     """Merge one matched MRDS/PDF pair into a unified record."""
 
     mrds_lat = _coerce_float(mrds_record.get("latitude"))
@@ -170,8 +175,10 @@ def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any
     pdf_lon = _coerce_float(pdf_record.get("longitude"))
     commodities = normalize_commodities(_as_list(mrds_record.get("commodities")) + _as_list(pdf_record.get("commodities")))
 
-    return {
+    record_uuid = deterministic_uuid("fusion", mrds_record.get("record_id"), pdf_record.get("record_id"))
+    merged = {
         "record_id": mrds_record.get("record_id") or pdf_record.get("record_id"),
+        "record_uuid": record_uuid,
         "site_name": mrds_record.get("site_name") or pdf_record.get("site_name"),
         "latitude": mrds_lat if mrds_lat is not None else pdf_lat,
         "longitude": mrds_lon if mrds_lon is not None else pdf_lon,
@@ -186,6 +193,8 @@ def merge_matched_records(mrds_record: dict[str, Any], pdf_record: dict[str, Any
         "source_text_sha1": _join_sources(mrds_record.get("source_text_sha1"), pdf_record.get("source_text_sha1")),
         "extraction_warnings": _join_lists(mrds_record.get("extraction_warnings"), pdf_record.get("extraction_warnings")),
     }
+    merged["provenance"] = _merge_record_provenance(mrds_record, pdf_record, merged, match_metadata=match_metadata)
+    return merged
 
 
 def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
@@ -199,6 +208,7 @@ def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
         merge_matched_records(
             mrds_df.loc[pair["mrds_index"]].to_dict(),
             pdf_df.loc[pair["pdf_index"]].to_dict(),
+            match_metadata=pair,
         )
         for pair in match_result["matched_pairs"]
     ]
@@ -223,6 +233,80 @@ def build_unified_dataset(csv_path: str | Path, pdf_path: str | Path):
         "total": len(unified),
     }
     return unified
+
+
+def _merge_record_provenance(
+    mrds_record: dict[str, Any],
+    pdf_record: dict[str, Any],
+    merged: dict[str, Any],
+    *,
+    match_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    record_uuid = merged.get("record_uuid")
+    provenance = empty_provenance(record_uuid=record_uuid)
+    mrds_provenance = ensure_provenance(mrds_record.get("provenance"), record_uuid=mrds_record.get("record_uuid"))
+    pdf_provenance = ensure_provenance(pdf_record.get("provenance"), record_uuid=pdf_record.get("record_uuid"))
+    chosen_sources = {
+        "record_id": "MRDS" if mrds_record.get("record_id") else "PDF",
+        "site_name": "MRDS" if mrds_record.get("site_name") else "PDF",
+        "latitude": "MRDS" if _coerce_float(mrds_record.get("latitude")) is not None else "PDF",
+        "longitude": "MRDS" if _coerce_float(mrds_record.get("longitude")) is not None else "PDF",
+        "grade": "PDF" if _coerce_float(pdf_record.get("grade")) is not None else "MRDS",
+        "tonnage": "PDF" if _coerce_float(pdf_record.get("tonnage")) is not None else "MRDS",
+        "source_url": "MRDS",
+    }
+    for field, chosen_source in chosen_sources.items():
+        provenance = merge_field_histories(provenance, field, mrds_provenance, pdf_provenance, chosen_source=chosen_source)
+        if field not in provenance.get("fields", {}):
+            provenance = set_field(
+                provenance,
+                field,
+                field_event(
+                    field,
+                    _json_ready(merged.get(field)),
+                    source=chosen_source,
+                    method="source_priority_selection",
+                    confidence=merged.get("confidence_score"),
+                    transformations=["mrds_pdf_fusion"],
+                    normalization_decisions=[f"chosen_source:{chosen_source}"],
+                ),
+            )
+
+    for field, method, transformations in (
+        ("commodities", "source_union", ["commodity_union", "lowercase_deduplication"]),
+        ("confidence_score", "confidence_merge", ["max_confidence_selection"]),
+        ("source", "source_merge", ["source_label_merge"]),
+    ):
+        provenance = merge_field_histories(provenance, field, mrds_provenance, pdf_provenance)
+        provenance = set_field(
+            provenance,
+            field,
+            field_event(
+                field,
+                _json_ready(merged.get(field)),
+                source="FUSION",
+                source_record_id=merged.get("record_id"),
+                method=method,
+                confidence=merged.get("confidence_score"),
+                transformations=transformations,
+                normalization_decisions=["MRDS/PDF candidates retained in field history"],
+            ),
+        )
+
+    provenance = append_lineage(
+        provenance,
+        step="dataset_fusion",
+        method="source_priority_and_fuzzy_match",
+        inputs=[str(mrds_record.get("record_id")), str(pdf_record.get("record_id"))],
+        outputs=[str(merged.get("record_id"))],
+        confidence=merged.get("confidence_score"),
+        details={
+            "source_priority": {"MRDS": 90, "PDF": 60, "FUSION": 80},
+            "match_metadata": match_metadata or {},
+            "chosen_sources": chosen_sources,
+        },
+    )
+    return provenance
 
 
 def export_geoparquet(dataframe, output_path: str | Path) -> Path:
@@ -289,7 +373,16 @@ def _ensure_schema(dataframe):
     frame["commodities"] = frame["commodities"].map(lambda value: normalize_commodities(_as_list(value)))
     for column in ("source_pages", "source_chunks", "extraction_warnings"):
         frame[column] = frame[column].map(_normalize_list)
+    frame["record_uuid"] = frame.apply(_ensure_record_uuid, axis=1)
+    frame["provenance"] = frame.apply(lambda row: ensure_provenance(row.get("provenance"), record_uuid=row.get("record_uuid")), axis=1)
     return frame
+
+
+def _ensure_record_uuid(row: Any) -> str:
+    existing = row.get("record_uuid") if hasattr(row, "get") else None
+    if existing is not None and existing == existing and str(existing).strip():
+        return str(existing)
+    return deterministic_uuid(row.get("source"), row.get("record_id"), row.get("site_name"), row.get("latitude"), row.get("longitude"))
 
 
 def _dedupe_dataset(dataframe):
@@ -328,6 +421,17 @@ def _distance_km(left: Any, right: Any) -> float | None:
     delta_lambda = math.radians(right_lon - left_lon)
     haversine = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
     return 2 * radius_km * math.asin(math.sqrt(haversine))
+
+
+def _json_ready(value: Any) -> Any:
+    try:
+        if value != value:
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return value
 
 
 def _has_coordinates(latitude: Any, longitude: Any) -> bool:

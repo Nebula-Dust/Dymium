@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .provenance import append_lineage, deterministic_uuid, ensure_provenance, field_event, set_field
+
 LOGGER = logging.getLogger(__name__)
 TARGET_CRS = "EPSG:4326"
 
@@ -62,7 +64,7 @@ LITHOLOGY_ALIASES = (
     "TYPE",
     "type",
 )
-KEEP_COLUMNS = ["geometry", "geologic_unit", "geology_description", "geologic_age_raw", "lithology_raw"]
+KEEP_COLUMNS = ["geometry", "geologic_unit", "geology_description", "geologic_age_raw", "lithology_raw", "geologic_unit_source_field", "geology_description_source_field", "geologic_age_source_field", "lithology_source_field"]
 
 AGE_KEYWORDS = [
     "Holocene",
@@ -135,7 +137,13 @@ def load_geology(shapefile_path: str | Path):
     geology["geology_description"] = geology[description_column].map(_clean_text) if description_column else None
     geology["geologic_age_raw"] = geology[age_column].map(_clean_text) if age_column else None
     geology["lithology_raw"] = geology[lithology_column].map(_clean_text) if lithology_column else None
-    return geology[KEEP_COLUMNS].copy()
+    geology["geologic_unit_source_field"] = unit_column
+    geology["geology_description_source_field"] = description_column
+    geology["geologic_age_source_field"] = age_column
+    geology["lithology_source_field"] = lithology_column
+    normalized = geology[KEEP_COLUMNS].copy()
+    normalized.attrs["source_path"] = str(shapefile_path)
+    return normalized
 
 
 def load_deposits(parquet_path: str | Path):
@@ -203,7 +211,20 @@ def spatial_join(deposits_gdf, geology_gdf):
         lambda row: _clean_text(row.get("geologic_age_raw")) or extract_geologic_age(row.get("geologic_unit"), row.get("geology_description")),
         axis=1,
     )
-    joined = joined.drop(columns=["geologic_age_raw", "lithology_raw"], errors="ignore")
+    source_path = geology_gdf.attrs.get("source_path")
+    joined["record_uuid"] = joined.apply(_ensure_record_uuid, axis=1)
+    joined["provenance"] = joined.apply(lambda row: _append_geology_provenance(row, source_path=source_path), axis=1)
+    joined = joined.drop(
+        columns=[
+            "geologic_age_raw",
+            "lithology_raw",
+            "geologic_unit_source_field",
+            "geology_description_source_field",
+            "geologic_age_source_field",
+            "lithology_source_field",
+        ],
+        errors="ignore",
+    )
     return joined
 
 
@@ -223,6 +244,68 @@ def export_enriched(dataframe, output_path: str | Path) -> Path:
     dataframe.to_parquet(output, index=False)
     LOGGER.info("Wrote %s geology-enriched records to %s.", len(dataframe), output)
     return output
+
+
+def _append_geology_provenance(row: Any, *, source_path: str | None) -> dict[str, Any]:
+    record_uuid = row.get("record_uuid") or deterministic_uuid("geology", row.get("record_id"), row.get("site_name"), row.get("latitude"), row.get("longitude"))
+    provenance = ensure_provenance(row.get("provenance"), record_uuid=record_uuid)
+    matched = _clean_text(row.get("geologic_unit")) is not None
+    provenance = append_lineage(
+        provenance,
+        step="geology_enrichment",
+        method="spatial_join_with_intersects_fallback",
+        inputs=[source_path or "geology_layer", str(row.get("record_id"))],
+        outputs=[str(row.get("record_id"))],
+        confidence=1.0 if matched else 0.0,
+        details={"matched_geology": matched, "target_crs": TARGET_CRS},
+    )
+    if not matched:
+        return provenance
+
+    field_specs = {
+        "geologic_unit": (row.get("geologic_unit"), row.get("geologic_unit_source_field"), "spatial_join_attribute_transfer", ["point_in_polygon_join"]),
+        "geology_description": (row.get("geology_description"), row.get("geology_description_source_field"), "spatial_join_attribute_transfer", ["point_in_polygon_join", "text_cleanup"]),
+        "lithology": (row.get("lithology"), row.get("lithology_source_field"), "lithology_normalization", ["attribute_mapping", "fallback_keyword_extraction"]),
+        "geologic_age": (row.get("geologic_age"), row.get("geologic_age_source_field"), "geologic_age_normalization", ["attribute_mapping", "fallback_keyword_extraction"]),
+    }
+    for field, (value, source_field, method, transformations) in field_specs.items():
+        if _clean_text(value) is None:
+            continue
+        provenance = set_field(
+            provenance,
+            field,
+            field_event(
+                field,
+                _json_ready(value),
+                source="GEOLOGY",
+                source_file=source_path,
+                source_record_id=_clean_text(row.get("geologic_unit")),
+                source_field=_clean_text(source_field),
+                method=method,
+                confidence=1.0,
+                transformations=transformations,
+                normalization_decisions=["geologic context assigned from containing polygon"],
+            ),
+        )
+    return provenance
+
+
+def _ensure_record_uuid(row: Any) -> str:
+    existing = row.get("record_uuid")
+    if existing is not None and existing == existing and str(existing).strip():
+        return str(existing)
+    return deterministic_uuid("deposit", row.get("record_id"), row.get("site_name"), row.get("latitude"), row.get("longitude"))
+
+
+def _json_ready(value: Any) -> Any:
+    try:
+        if value != value:
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return value
 
 
 def extract_lithology(unit_name: Any, description: Any = None) -> str | None:
@@ -305,7 +388,12 @@ def _first_existing_column(dataframe, aliases: tuple[str, ...]) -> str | None:
 
 
 def _clean_text(value: Any) -> str | None:
-    if value is None or value != value:
+    if value is None:
+        return None
+    try:
+        if value != value:
+            return None
+    except (TypeError, ValueError):
         return None
     text = re.sub(r"\s+", " ", str(value)).strip()
     return text or None

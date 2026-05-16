@@ -21,6 +21,7 @@ from .document_ingest import DocumentIngestionResult, ingest_pdf_document, write
 from .ingest_mrds import normalize_commodities
 from .llm_extract import extract_deposits_from_chunk
 from .models import MineralDeposit
+from .provenance import append_lineage, deterministic_uuid, empty_provenance, field_event, set_field
 
 LOGGER = logging.getLogger(__name__)
 
@@ -322,8 +323,13 @@ def _prepare_record(record: dict[str, Any], *, source_path: str | Path | None) -
         latitude = None
         longitude = None
 
+    record_id = _record_id(site_name, source_path)
+    source_pages = _int_list(record.get("source_pages"))
+    source_chunks = _string_list(record.get("source_chunks"))
+    record_uuid = deterministic_uuid("pdf", source_path, site_name, source_pages)
     prepared = {
-        "record_id": _record_id(site_name, source_path),
+        "record_id": record_id,
+        "record_uuid": record_uuid,
         "site_name": site_name,
         "latitude": latitude,
         "longitude": longitude,
@@ -334,13 +340,87 @@ def _prepare_record(record: dict[str, Any], *, source_path: str | Path | None) -
         "tonnage": _coerce_float(record.get("tonnage")),
         "source_url": str(source_path) if source_path else None,
         "confidence_score": _coerce_float(record.get("confidence_score")),
-        "source_pages": _int_list(record.get("source_pages")),
-        "source_chunks": _string_list(record.get("source_chunks")),
+        "source_pages": source_pages,
+        "source_chunks": source_chunks,
         "source_text_sha1": _clean_optional_string(record.get("source_text_sha1")),
         "extraction_warnings": list(dict.fromkeys(warnings)),
         "raw_extraction": _raw_snapshot(record),
     }
+    prepared["provenance"] = _build_pdf_provenance(record, prepared, source_path=source_path)
     return prepared
+
+
+def _build_pdf_provenance(record: dict[str, Any], prepared: dict[str, Any], *, source_path: str | Path | None) -> dict[str, Any]:
+    source_file = str(source_path) if source_path else None
+    record_uuid = prepared.get("record_uuid")
+    confidence = _coerce_float(prepared.get("confidence_score")) or 0.0
+    pages = _int_list(prepared.get("source_pages"))
+    chunks = _string_list(prepared.get("source_chunks"))
+    source_text_sha1 = _clean_optional_string(prepared.get("source_text_sha1"))
+    provenance = empty_provenance(record_uuid=record_uuid)
+    provenance = append_lineage(
+        provenance,
+        step="document_ingestion",
+        method="pdf_text_or_ocr_routing",
+        inputs=[source_file or "PDF"],
+        outputs=chunks,
+        confidence=confidence,
+        details={"pages": pages, "source_text_sha1": source_text_sha1},
+    )
+    provenance = append_lineage(
+        provenance,
+        step="llm_entity_extraction",
+        method="openai_structured_json",
+        inputs=chunks,
+        outputs=[str(prepared.get("record_id"))],
+        confidence=confidence,
+        details={"source_priority": 60},
+    )
+
+    field_specs = {
+        "record_id": (prepared.get("record_id"), "deterministic_record_id", ["stable_hash_generation"], []),
+        "record_uuid": (prepared.get("record_uuid"), "deterministic_uuid", ["stable_uuid_generation"], []),
+        "site_name": (prepared.get("site_name"), "llm_structured_json", ["text_cleanup"], []),
+        "latitude": (prepared.get("latitude"), "coordinate_validation", ["numeric_coercion", "coordinate_range_validation"], _coordinate_decisions(record, "latitude", prepared.get("latitude"))),
+        "longitude": (prepared.get("longitude"), "coordinate_validation", ["numeric_coercion", "coordinate_range_validation"], _coordinate_decisions(record, "longitude", prepared.get("longitude"))),
+        "commodities": (prepared.get("commodities"), "commodity_normalization", ["commodity_abbreviation_expansion", "lowercase_deduplication"], _normalization_decisions(record.get("commodities"), prepared.get("commodities"))),
+        "commod1": (prepared.get("commod1"), "commodity_normalization", ["primary_commodity_selection"], []),
+        "commod2": (prepared.get("commod2"), "commodity_normalization", ["secondary_commodity_selection"], []),
+        "grade": (prepared.get("grade"), "llm_structured_json", ["numeric_coercion"], _normalization_decisions(record.get("grade"), prepared.get("grade"))),
+        "tonnage": (prepared.get("tonnage"), "llm_structured_json", ["numeric_coercion"], _normalization_decisions(record.get("tonnage"), prepared.get("tonnage"))),
+        "confidence_score": (prepared.get("confidence_score"), "confidence_scoring", ["evidence_weighted_scoring"], []),
+    }
+    for field, (value, method, transformations, decisions) in field_specs.items():
+        provenance = set_field(
+            provenance,
+            field,
+            field_event(
+                field,
+                _json_ready(value),
+                source="PDF",
+                source_file=source_file,
+                source_record_id=prepared.get("record_id"),
+                source_field=field,
+                pages=pages,
+                chunk_ids=chunks,
+                source_text_sha1=source_text_sha1,
+                method=method,
+                confidence=confidence if value is not None else 0.0,
+                transformations=transformations,
+                normalization_decisions=decisions,
+                warnings=prepared.get("extraction_warnings"),
+            ),
+        )
+    provenance = append_lineage(
+        provenance,
+        step="pdf_validation",
+        method="pydantic_schema_validation",
+        inputs=[str(prepared.get("record_id"))],
+        outputs=[str(prepared.get("record_id"))],
+        confidence=confidence,
+        details={"warnings": prepared.get("extraction_warnings", [])},
+    )
+    return provenance
 
 
 def _merge_record(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
@@ -369,6 +449,22 @@ def _with_provenance(record: dict[str, Any], *, site_name: str) -> dict[str, Any
     if not record["source_pages"]:
         record["extraction_warnings"].append("missing_page_provenance")
     return record
+
+
+def _coordinate_decisions(raw_record: dict[str, Any], field: str, normalized_value: Any) -> list[str]:
+    raw_value = raw_record.get(field)
+    decisions = _normalization_decisions(raw_value, normalized_value)
+    if raw_value not in (None, "") and normalized_value is None:
+        decisions.append(f"invalid_{field}_nulled:{raw_value}")
+    return decisions
+
+
+def _normalization_decisions(raw_value: Any, normalized_value: Any) -> list[str]:
+    if raw_value in (None, "") and normalized_value in (None, ""):
+        return ["source_value_missing"]
+    if _json_ready(raw_value) != _json_ready(normalized_value):
+        return [f"normalized_from:{raw_value}"]
+    return []
 
 
 def _find_similar_site(records: list[dict[str, Any]], site_name: str) -> int | None:
@@ -482,6 +578,17 @@ def _join_strings(*values: Any) -> str | None:
 
 def _raw_snapshot(record: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in record.items() if not key.startswith("_")}
+
+
+def _json_ready(value: Any) -> Any:
+    try:
+        if value != value:
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return value
 
 
 def _is_valid_latitude(value: Any) -> bool:

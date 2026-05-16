@@ -307,6 +307,8 @@ Dymium exports normalized geospatial datasets with fields such as:
 - `geologic_age`
 - `source_url`
 - `confidence_score`
+- `record_uuid`
+- `provenance`
 - `geometry`
 
 Outputs are written to GeoParquet for interoperability with:
@@ -316,6 +318,61 @@ Outputs are written to GeoParquet for interoperability with:
 - Spark
 - QGIS
 - modern geospatial lakehouse workflows
+
+## Field-Level Provenance
+
+Dymium embeds provenance directly into each record under a nested `provenance` object. This is separate from logs: the lineage travels with the GeoParquet row and can be used later for auditing, reconciliation, trust scoring, and ML weighting.
+
+Each field can retain:
+
+- source file origin
+- source record ID
+- page and chunk IDs for PDF-derived fields
+- extraction or enrichment method
+- confidence
+- source priority
+- normalization decisions
+- append-only field history
+- record-level transformation lineage
+- resolved conflicts when sources disagree
+
+Example shape:
+
+```json
+{
+  "record_uuid": "d4151017-c307-5f59-8083-5736d897e300",
+  "commodities": ["gold", "copper"],
+  "provenance": {
+    "schema_version": "dymium-field-lineage-v1",
+    "fields": {
+      "commodities": {
+        "source": "MRDS",
+        "source_file": "rdbms-tab/MRDS.txt",
+        "source_field": "code_list",
+        "method": "commodity_normalization",
+        "confidence": 1.0,
+        "transformations": ["commodity_abbreviation_expansion", "lowercase_deduplication"],
+        "normalization_decisions": ["normalized_from: AU CU "],
+        "history": [
+          {
+            "source": "MRDS",
+            "method": "commodity_normalization"
+          }
+        ]
+      }
+    },
+    "record_lineage": [
+      {
+        "step": "mrds_normalization",
+        "method": "schema_normalization"
+      }
+    ],
+    "conflicts": []
+  }
+}
+```
+
+When MRDS and PDF records are fused, MRDS generally supersedes PDF for stable identifiers and coordinates, PDF can fill report-derived grade or tonnage, commodities are unioned, and conflicts are retained in `provenance.conflicts` instead of being lost.
 
 ## Project Status
 
