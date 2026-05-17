@@ -1,0 +1,128 @@
+{
+  "version": "dymium-source-registry-v1",
+  "sources": {
+    "MRDS": {
+      "display_name": "USGS Mineral Resources Data System",
+      "source_type": "structured_dataset",
+      "update_cadence": "irregular",
+      "trust_level": 0.9,
+      "schema_version": "mrds-rdbms-tab",
+      "adapter": "MRDSSourceAdapter",
+      "formats": [
+        "csv",
+        "tsv",
+        "txt"
+      ],
+      "extraction_strategy": "tabular_schema_adapter",
+      "provenance_defaults": {
+        "publisher": "USGS",
+        "license": "public-domain"
+      },
+      "reconciliation_rules": {
+        "coordinate_priority": "source_decimal_degrees",
+        "commodity_mapping": "mrds_code_aliases"
+      }
+    },
+    "GEOROC": {
+      "display_name": "GEOROC geochemical sample tables",
+      "source_type": "structured_dataset",
+      "update_cadence": "periodic",
+      "trust_level": 0.72,
+      "schema_version": "georoc-tabular-sample",
+      "adapter": "GEOROCSourceAdapter",
+      "formats": [
+        "csv",
+        "tsv",
+        "txt"
+      ],
+      "extraction_strategy": "tabular_schema_adapter",
+      "provenance_defaults": {
+        "publisher": "GEOROC"
+      },
+      "reconciliation_rules": {
+        "deposit_semantics": "sample_or_locality_context",
+        "coordinate_priority": "sample_coordinates"
+      }
+    },
+    "PetDB": {
+      "display_name": "PetDB petrological sample tables",
+      "source_type": "structured_dataset",
+      "update_cadence": "periodic",
+      "trust_level": 0.7,
+      "schema_version": "petdb-tabular-sample",
+      "adapter": "PetDBSourceAdapter",
+      "formats": [
+        "csv",
+        "tsv",
+        "txt"
+      ],
+      "extraction_strategy": "tabular_schema_adapter",
+      "provenance_defaults": {
+        "publisher": "PetDB"
+      },
+      "reconciliation_rules": {
+        "deposit_semantics": "sample_context",
+        "coordinate_priority": "sample_coordinates"
+      }
+    },
+    "MineralsYearbook": {
+      "display_name": "USGS Minerals Yearbook reports",
+      "source_type": "semi_structured_report",
+      "update_cadence": "annual",
+      "trust_level": 0.78,
+      "schema_version": "report-pdf-v1",
+      "adapter": "MineralsYearbookAdapter",
+      "formats": [
+        "pdf"
+      ],
+      "extraction_strategy": "pdf_document_ingestion_then_entity_extraction",
+      "provenance_defaults": {
+        "publisher": "USGS"
+      },
+      "reconciliation_rules": {
+        "coordinate_priority": "extracted_if_present",
+        "numeric_values": "preserve_report_units"
+      }
+    },
+    "OperatorFiling": {
+      "display_name": "Operator technical filings and reports",
+      "source_type": "operator_filing",
+      "update_cadence": "event_driven",
+      "trust_level": 0.62,
+      "schema_version": "operator-report-v1",
+      "adapter": "OperatorFilingAdapter",
+      "formats": [
+        "pdf"
+      ],
+      "extraction_strategy": "pdf_ocr_aware_document_ingestion",
+      "provenance_defaults": {
+        "publisher": "operator"
+      },
+      "reconciliation_rules": {
+        "source_conflict_policy": "preserve_and_lower_confidence",
+        "numeric_values": "preserve_report_units"
+      }
+    },
+    "NaturalEarth": {
+      "display_name": "Natural Earth geospatial context layers",
+      "source_type": "geospatial_layer",
+      "update_cadence": "versioned",
+      "trust_level": 0.82,
+      "schema_version": "natural-earth-vector",
+      "adapter": "NaturalEarthAdapter",
+      "formats": [
+        "shp",
+        "geojson",
+        "gpkg",
+        "zip"
+      ],
+      "extraction_strategy": "geospatial_context_loader",
+      "provenance_defaults": {
+        "publisher": "Natural Earth"
+      },
+      "reconciliation_rules": {
+        "geometry_role": "context_enrichment_not_deposit"
+      }
+    }
+  }
+}

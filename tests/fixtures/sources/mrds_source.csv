@@ -1,0 +1,3 @@
+dep_id,name,code_list,latitude,longitude,url
+100,Alpha Mine,AU CU,40.0,-105.0,https://example.test/mrds/100
+101,Beta Prospect,REE,41.0,-106.0,https://example.test/mrds/101

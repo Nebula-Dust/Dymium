@@ -122,6 +122,78 @@ Confidence heuristics are loaded from JSON config files in `config/confidence/`:
 
 The confidence layer is conservative. Missing coordinates, invalid geometry, low OCR quality, unresolved conflicts, and missing provenance lower or cap trust rather than being hidden.
 
+## Multi-Source Ingestion Architecture
+
+Dymium now includes a source-expansion layer under `src/sources/` that sits above the existing ETL and reconciliation modules. The intent is to move the project from an MRDS-first workflow toward a broader, source-aware geological data infrastructure layer.
+
+```text
+Public source artifact
+    -> Source detection + capability inspection
+    -> Source registry metadata + source-specific policy
+    -> Source adapter preserving raw semantics
+    -> Canonical reconciliation adapter when applicable
+    -> Provenance-rich source records + coverage metrics
+```
+
+### Supported Source Classes
+
+The source registry in `config/sources/registry.json` currently defines these source families:
+
+| Source | Current role | Formats | Maturity |
+| --- | --- | --- | --- |
+| `MRDS` | Mineral deposit records | CSV/TSV/TXT | main operational tabular path |
+| `GEOROC` | Geochemical sample/locality context | CSV/TSV/TXT | early canonical adapter |
+| `PetDB` | Petrological sample context | CSV/TSV/TXT | early canonical adapter |
+| `MineralsYearbook` | Semi-structured public reports | PDF/scanned PDF | document ingestion scaffold |
+| `OperatorFiling` | Future operator technical filings | PDF/scanned PDF | provenance-first scaffold |
+| `NaturalEarth` | Geospatial context layers | SHP/GeoJSON/GeoPackage/ZIP | context/enrichment adapter |
+
+MRDS remains the most complete end-to-end source. GEOROC and PetDB are intentionally treated as sample/locality context sources, not as perfect deposit datasets. PDF report sources currently use the fault-tolerant document ingestion layer; entity extraction can be layered on top without discarding document-level provenance.
+
+### Source Adapter Philosophy
+
+Every source adapter implements a standardized interface and emits `SourceIngestionResult` objects containing:
+
+- source descriptor and detected capabilities
+- source-native raw fields
+- source terminology and schema warnings
+- CRS and geometry metadata when present
+- ingestion provenance and checksum/version state
+- validation issues with severity levels
+- canonical records when a reconciliation adapter applies
+- source coverage and reliability metrics
+
+The source layer preserves source-native semantics first. Canonical schema mapping is a separate step, so raw source values, source field names, CRS assumptions, timestamps, and normalization events remain available for audit and reconciliation.
+
+### Source Detection
+
+`src/sources/loaders/detection.py` detects CSV/TSV/TXT, PDF, scanned PDF indicators, shapefile, GeoJSON, GeoPackage, ZIP archives, nested archive members, encoding, delimiter, schema fields, CRS hints, geometry presence, malformed files, and remote URI scaffolding.
+
+Remote acquisition is intentionally conservative. `src/sources/loaders/acquisition.py` provides rate-limited, checksum-aware download/copy scaffolding for future automation, but Dymium does not yet scrape large external ecosystems automatically.
+
+### Incremental Ingestion
+
+Adapters support checksum-based incremental ingestion through `SourceUpdateState`. If a source checksum has not changed, the adapter can skip a full reload and return an explicit unchanged result rather than silently doing nothing.
+
+### Source-Specific Reconciliation
+
+Dataset-specific rules live in the source registry and can define trust levels, update cadence, schema versions, extraction strategies, provenance defaults, coordinate policy, geometry roles, and conflict behavior. This avoids forcing MRDS assumptions onto GEOROC, PetDB, PDFs, or context layers.
+
+### Source Coverage Metrics
+
+`src/sources/metrics.py` reports source coverage and reliability indicators including canonical mapping rate, raw field coverage, unmatched fields, ontology coverage, geographic coverage, validation issue counts, ingestion success, OCR dependence, schema stability, and update consistency.
+
+### Known Source Limitations
+
+This is the first source-expansion architecture, not a complete public data lake. Current limitations:
+
+- MRDS is still the most mature operational ingestion path.
+- GEOROC/PetDB adapters are generic tabular adapters and need dataset-specific column tuning against real exports.
+- Natural Earth support is a geospatial context adapter, not a mineral deposit source.
+- Operator filings and Minerals Yearbook reports preserve document provenance, but full report-specific extraction/reconciliation requires additional entity extraction rules.
+- Remote acquisition is scaffolding only; broad automated scraping, scheduling, retries, and API-specific clients are future work.
+- Ontology coverage remains intentionally small and should be expanded with domain review.
+
 ## Canonical Schema Reconciliation
 
 Dymium now includes an early production-oriented schema reconciliation layer under `src/reconciliation/`. This layer is separate from the existing ETL modules: adapters convert source-native tables into canonical geological records while preserving original source semantics.
@@ -316,12 +388,14 @@ Dymium is currently an early-stage open-source prototype.
 - Field-level provenance metadata
 - Configurable confidence scoring and validation reports
 - Canonical schema reconciliation for MRDS/GEOROC/PetDB-style tables
+- Multi-source ingestion registry and source adapter framework
 - Ingestion benchmarking, validation, and drift reporting
 
 ### In Progress
 
 - Benchmark calibration against adjudicated geological datasets
 - Expanded reconciliation ontology coverage
+- Production-grade source-specific downloaders and update schedulers
 - Expanded lithology normalization
 - GeoPackage support
 - Logging and observability
