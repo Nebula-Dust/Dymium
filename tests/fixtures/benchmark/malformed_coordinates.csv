@@ -1,0 +1,3 @@
+dep_id,name,code_list,latitude,longitude
+BAD1,Bad Coordinate Mine,AU,999,-200
+PARTIAL,Partial Coordinate Mine,CU,40.0,

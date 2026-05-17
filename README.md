@@ -242,6 +242,65 @@ This is a baseline reconciliation layer, not a complete geoscience ontology. Cur
 - conflicting records are annotated, not adjudicated
 - ontology mappings are intentionally small and should be expanded with domain review
 
+## Ingestion Benchmarking and Validation
+
+Dymium includes an ingestion benchmarking subsystem under `src/benchmarking/` for measuring pipeline quality across document ingestion, OCR routing, schema normalization, reconciliation, spatial enrichment, GeoParquet export, and confidence scoring. The goal is operational visibility, not a single oversimplified quality score.
+
+```text
+Pipeline artifact
+    -> Stage benchmark
+    -> Validation metrics + structured events
+    -> JSON / Markdown report
+    -> Drift comparison against prior runs
+```
+
+Benchmark stages can emit duration, throughput, warning counts, failure counts, extraction coverage, confidence distributions, validation results, and structured events. Reports are exportable through `src/benchmarking/reports/`, and Streamlit-ready summary payloads are available through `src/benchmarking/dashboards/`.
+
+### Validation Philosophy
+
+Validation is conservative. Invalid coordinates, missing geometries, CRS mismatches, duplicate points, impossible spatial joins, missing provenance, malformed confidence metadata, unresolved conflicts, and schema drift are surfaced as metrics and events rather than silently ignored.
+
+Small deterministic fixtures live in `tests/fixtures/benchmark/` and cover clean MRDS-style rows, malformed coordinates, duplicate deposits, conflicting commodities, incomplete metadata, schema drift examples, and intentionally corrupted PDF inputs.
+
+### Benchmark Configuration
+
+Operational benchmark policy is centralized in `src/benchmarking/policy.py` and configured externally through `config/benchmarking/thresholds.json`. This includes OCR quality thresholds and drift detection thresholds such as warning-rate increases, confidence decreases, text coverage regression, OCR routing increases, and failed page deltas.
+
+Malformed or missing benchmark policy configs fail safely: Dymium logs a warning and falls back to built-in default policy values. Thresholds can also be overridden programmatically for dataset-specific calibration tests.
+
+### Confidence Observability
+
+Benchmark reports retain confidence distributions rather than hiding uncertainty. Current outputs include percentile summaries, histogram buckets, low-confidence OCR counts, confidence drift comparisons, dependency failure summaries from the confidence subsystem, and validation events with severity levels.
+
+### Schema and Extraction Drift Detection
+
+`src/benchmarking/drift/` compares benchmark reports across ingestion runs. It can surface new or missing fields, warning-rate increases, confidence drops, text extraction regression, increased OCR routing, failed-page increases, and coordinate anomaly deltas.
+
+This makes Dymium suitable for regression testing when source datasets change, OCR engines are swapped, reconciliation logic is tuned, or schema adapters evolve.
+
+### Reproducibility Guarantees
+
+Benchmark reports are deterministic for the same inputs and configuration. They preserve explicit stage names, schema versions, dataset names, pipeline versions, structured validation events, and configurable thresholds so runs can be compared over time.
+
+Example usage:
+
+```python
+from src.benchmarking import BenchmarkSuite
+from src.benchmarking.reports import write_json_report, write_markdown_report
+
+suite = BenchmarkSuite(run_name="nightly", dataset_name="mrds-sample")
+suite.add_dataframe_stage(df, stage_name="schema_normalization")
+suite.add_geoparquet_export("out/enriched.parquet", input_records=len(df))
+report = suite.finalize(baseline=previous_report)
+
+write_json_report(report, "out/benchmark-report.json")
+write_markdown_report(report, "out/benchmark-report.md")
+```
+
+### Known Benchmark Limitations
+
+The benchmarking layer measures observable data quality; it does not prove geological correctness. Current fixtures are intentionally small, OCR scoring depends on available page-level OCR confidence, coordinate validation assumes decimal-degree-compatible inputs unless CRS metadata says otherwise, and drift thresholds are heuristic until calibrated against adjudicated geological datasets.
+
 ## Project Status
 
 Dymium is currently an early-stage open-source prototype.
@@ -257,10 +316,11 @@ Dymium is currently an early-stage open-source prototype.
 - Field-level provenance metadata
 - Configurable confidence scoring and validation reports
 - Canonical schema reconciliation for MRDS/GEOROC/PetDB-style tables
+- Ingestion benchmarking, validation, and drift reporting
 
 ### In Progress
 
-- Confidence calibration benchmarks
+- Benchmark calibration against adjudicated geological datasets
 - Expanded reconciliation ontology coverage
 - Expanded lithology normalization
 - GeoPackage support

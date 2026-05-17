@@ -1,0 +1,16 @@
+{
+  "thresholds": {
+    "ocr": {
+      "low_confidence": 0.35,
+      "gibberish_confidence": 0.15
+    },
+    "drift": {
+      "confidence_mean_delta": -0.05,
+      "invalid_geometry_rate_delta": 0.02,
+      "warning_rate_delta": 0.05,
+      "text_coverage_percent_delta": -5.0,
+      "pages_needing_ocr_delta": 0.0,
+      "failed_pages_delta": 0.0
+    }
+  }
+}
